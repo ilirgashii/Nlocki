@@ -1,0 +1,162 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-display: "Space Grotesk";
+    --font-body: "DM Sans";
+    --font-mono: "Geist Mono";
+    --radius: 0.625rem;
+
+    --background: 0.99 0 0;
+    --foreground: 0.12 0 0;
+    --card: 0.97 0 0;
+    --card-foreground: 0.12 0 0;
+    --popover: 1.0 0 0;
+    --popover-foreground: 0.12 0 0;
+
+    --primary: 0.65 0.22 354;
+    --primary-foreground: 0.99 0 0;
+
+    --secondary: 0.94 0.02 0;
+    --secondary-foreground: 0.2 0 0;
+    --muted: 0.92 0.01 0;
+    --muted-foreground: 0.48 0 0;
+
+    --accent: 0.65 0.22 354;
+    --accent-foreground: 0.99 0 0;
+
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.88 0.01 0;
+    --input: 0.96 0.01 0;
+    --ring: 0.65 0.22 354;
+
+    --chart-1: 0.63 0.14 255;
+    --chart-2: 0.6 0.1 180;
+    --chart-3: 0.7 0.11 120;
+    --chart-4: 0.55 0.16 45;
+    --chart-5: 0.65 0.12 25;
+
+    --sidebar: 0.98 0 0;
+    --sidebar-foreground: 0.12 0 0;
+    --sidebar-primary: 0.65 0.22 354;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.92 0.01 0;
+    --sidebar-accent-foreground: 0.2 0 0;
+    --sidebar-border: 0.88 0.01 0;
+    --sidebar-ring: 0.65 0.22 354;
+  }
+
+  .dark {
+    --background: 0.11 0 0;
+    --foreground: 0.93 0 0;
+    --card: 0.15 0 0;
+    --card-foreground: 0.93 0 0;
+    --popover: 0.18 0 0;
+    --popover-foreground: 0.93 0 0;
+
+    --primary: 0.7 0.24 354;
+    --primary-foreground: 0.11 0 0;
+
+    --secondary: 0.2 0.01 0;
+    --secondary-foreground: 0.88 0 0;
+    --muted: 0.22 0.01 0;
+    --muted-foreground: 0.6 0 0;
+
+    --accent: 0.7 0.24 354;
+    --accent-foreground: 0.11 0 0;
+
+    --destructive: 0.65 0.19 22;
+    --destructive-foreground: 0.11 0 0;
+
+    --border: 0.26 0.01 0;
+    --input: 0.2 0.01 0;
+    --ring: 0.7 0.24 354;
+
+    --chart-1: 0.7 0.18 260;
+    --chart-2: 0.72 0.14 185;
+    --chart-3: 0.76 0.16 130;
+    --chart-4: 0.68 0.2 50;
+    --chart-5: 0.72 0.16 30;
+
+    --sidebar: 0.14 0 0;
+    --sidebar-foreground: 0.93 0 0;
+    --sidebar-primary: 0.7 0.24 354;
+    --sidebar-primary-foreground: 0.11 0 0;
+    --sidebar-accent: 0.2 0.01 0;
+    --sidebar-accent-foreground: 0.88 0 0;
+    --sidebar-border: 0.22 0.01 0;
+    --sidebar-ring: 0.7 0.24 354;
+  }
+
+  * {
+    @apply border-border;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s
+      ease;
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--primary) / 0.35);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--primary) / 0.6);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(var(--primary) / 0.35) transparent;
+  }
+}
+
+@layer utilities {
+  @font-face {
+    font-family: "Geist Mono";
+    src: url("/assets/fonts/GeistMono.woff2") format("woff2");
+    font-display: swap;
+  }
+
+  .transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .shadow-subtle {
+    box-shadow: 0 2px 4px oklch(var(--foreground) / 0.05);
+  }
+
+  .shadow-elevated {
+    box-shadow: 0 4px 12px oklch(var(--foreground) / 0.08);
+  }
+
+  .gradient-pink-accent {
+    background: linear-gradient(
+      135deg,
+      oklch(var(--accent)) 0%,
+      oklch(var(--accent) / 0.8) 100%
+    );
+  }
+
+  .pink-glow {
+    box-shadow: 0 0 20px oklch(var(--primary) / 0.25);
+  }
+}

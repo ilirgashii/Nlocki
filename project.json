@@ -1,0 +1,29 @@
+{
+  "overview": "Nlock'i is a full-featured fitness and nutrition tracking web app with social features. Track daily workouts with a 111-exercise library organized in weekly schedules, log meals using ready-made food lists or barcode scanning, monitor macros and water intake, set goals, view progress charts, and connect with people through a social feed with direct messaging.",
+  "features": [
+    "Daily fitness log with 111+ categorized exercises and weekly Mon-Sun schedule with editable weights",
+    "Nutrition tracking with ready-made food presets, portion options, macro bars, and water quick-add",
+    "Open Food Facts barcode scanning for packaged food nutrition data",
+    "Goal setting with real-time progress rings and achievement badges on dashboard",
+    "Progress charts (daily/weekly/monthly/yearly) for workouts, calories, macros, and water",
+    "Social feed with posts, stories, likes, comments, follow system, and public/private profiles",
+    "Direct messaging with inbox, pending requests tab, and message request flow",
+    "Data export as CSV for nutrition and fitness logs",
+    "Profile photo upload and customizable user profiles",
+    "Internet Identity authentication with dark/light mode and pink accent branding"
+  ],
+  "category": "fitness",
+  "tags": [
+    "fitness",
+    "nutrition",
+    "tracking",
+    "social",
+    "health",
+    "workout",
+    "diet",
+    "wellness",
+    "goals",
+    "progress"
+  ],
+  "last_updated": "2026-04-25T00:30:25.964Z"
+}

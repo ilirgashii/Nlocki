@@ -1,0 +1,269 @@
+type WorkoutStreak = 
+ record {
+   currentStreak: nat;
+   lastWorkoutDate: opt text;
+   longestStreak: nat;
+ };
+type WorkoutInput = 
+ record {
+   date: text;
+   exerciseName: text;
+   reps: nat;
+   sets: nat;
+   weight: opt float64;
+ };
+type Workout = 
+ record {
+   date: text;
+   exerciseName: text;
+   id: nat;
+   reps: nat;
+   sets: nat;
+   timestamp: int;
+   weight: opt float64;
+ };
+type WeeklyScheduleEntry = 
+ record {
+   dayOfWeek: DayOfWeek;
+   exerciseName: text;
+   lastEditedTimestamp: opt Timestamp;
+   lastEditedWeight: opt float64;
+   reps: nat;
+   sets: nat;
+   weightKg: opt float64;
+ };
+type WaterLog = 
+ record {
+   amount: nat;
+   date: text;
+ };
+type UserProfile = 
+ record {
+   avatarUrl: opt text;
+   bio: text;
+   displayName: opt text;
+   email: opt text;
+   followersCount: nat;
+   followingCount: nat;
+   isPublic: bool;
+   phone: opt text;
+   userId: text;
+   username: text;
+ };
+type UserGoals = 
+ record {
+   dailyCalorieTarget: nat;
+   weeklyMinWorkouts: nat;
+ };
+type Timestamp = int;
+type Task = 
+ record {
+   completed: bool;
+   date: text;
+   id: nat;
+   title: text;
+ };
+type Story = 
+ record {
+   authorId: text;
+   authorUsername: text;
+   id: nat;
+   photoUrl: text;
+   "text": opt text;
+   timestamp: Timestamp;
+ };
+type RequestStatus = 
+ variant {
+   accepted;
+   declined;
+   pending;
+ };
+type Post = 
+ record {
+   authorId: text;
+   authorUsername: text;
+   commentCount: nat;
+   id: nat;
+   likeCount: nat;
+   photoUrl: opt text;
+   "text": text;
+   timestamp: Timestamp;
+ };
+type PersonalRecord = 
+ record {
+   achievedAt: Timestamp;
+   exerciseName: text;
+   maxReps: nat;
+   maxSets: nat;
+   maxWeight: opt float64;
+ };
+type MessageRequest = 
+ record {
+   id: text;
+   previewText: text;
+   recipientId: text;
+   senderId: text;
+   status: RequestStatus;
+   timestamp: int;
+ };
+type MessageReaction = 
+ record {
+   emoji: text;
+   timestamp: int;
+   userId: principal;
+ };
+type MessageId = text;
+type Message = 
+ record {
+   id: MessageId;
+   isRead: bool;
+   reactions: vec MessageReaction;
+   recipientId: text;
+   senderId: text;
+   "text": text;
+   timestamp: int;
+ };
+type MealSuggestion = 
+ record {
+   calories: float64;
+   carbs: float64;
+   fat: float64;
+   name: text;
+   protein: float64;
+ };
+type MealInput = 
+ record {
+   calories: nat;
+   carbs: nat;
+   date: text;
+   fat: nat;
+   mealName: text;
+   protein: nat;
+ };
+type Meal = 
+ record {
+   calories: nat;
+   carbs: nat;
+   date: text;
+   fat: nat;
+   id: nat;
+   mealName: text;
+   protein: nat;
+   timestamp: int;
+ };
+type FoodPreset = 
+ record {
+   caloriesPer100g: nat;
+   carbsPer100g: float64;
+   category: text;
+   fatPer100g: float64;
+   id: nat;
+   name: text;
+   proteinPer100g: float64;
+ };
+type DayOfWeek = nat;
+type ConversationSummary = 
+ record {
+   lastMessage: text;
+   lastMessageTime: int;
+   otherUserId: text;
+   otherUsername: text;
+   unreadCount: nat;
+ };
+type Comment = 
+ record {
+   authorId: text;
+   authorUsername: text;
+   id: nat;
+   postId: nat;
+   "text": text;
+   timestamp: Timestamp;
+ };
+service : {
+  acceptMessageRequest: (requestId: text) -> ();
+  addMeal: (entry: MealInput) -> (Meal);
+  addReaction: (messageId: text, emoji: text) -> ();
+  addTask: (date: text, title: text) -> (Task);
+  addWorkout: (entry: WorkoutInput) -> (Workout);
+  canMessageUser: (targetUserId: text) -> (bool) query;
+  clearScheduleDay: (dayOfWeek: nat) -> ();
+  createComment: (postId: nat, "text": text) -> (Comment);
+  createOrGetProfile: () -> (UserProfile);
+  createPost: ("text": text, photoUrl: opt text) -> (Post);
+  createStory: (photoUrl: text, "text": opt text) -> (Story);
+  declineMessageRequest: (requestId: text) -> ();
+  deleteComment: (commentId: nat) -> ();
+  deleteConversation: (otherUserId: text) -> ();
+  deleteMeal: (id: nat) -> (bool);
+  deletePost: (postId: nat) -> ();
+  deleteStory: (storyId: nat) -> ();
+  deleteTask: (taskId: nat) -> (bool);
+  deleteWorkout: (id: nat) -> (bool);
+  exportFitnessCSV: (startDate: text, endDate: text) -> (text) query;
+  exportNutritionCSV: (startDate: text, endDate: text) -> (text) query;
+  followUser: (targetId: text) -> ();
+  getComments: (postId: nat) -> (vec Comment) query;
+  getConversations: () -> (vec ConversationSummary) query;
+  getDailySummary: (date: text) ->
+   (record {
+      taskCompletionPct: float64;
+      totalCalories: nat;
+      totalCarbs: nat;
+      totalFat: nat;
+      totalProtein: nat;
+      waterMl: nat;
+      workoutCount: nat;
+    }) query;
+  getFeed: () -> (vec Post) query;
+  getFollowers: (userId: text) -> (vec UserProfile) query;
+  getFollowing: (userId: text) -> (vec UserProfile) query;
+  getFoodPreset: (id: nat) -> (opt FoodPreset) query;
+  getGoals: () -> (UserGoals) query;
+  getMealsForDate: (date: text) -> (vec Meal) query;
+  getMealsInRange: (startDate: text, endDate: text) -> (vec Meal) query;
+  getMessageRequests: () -> (vec MessageRequest) query;
+  getMessages: (otherUserId: text) -> (vec Message) query;
+  getMyProfile: () -> (opt UserProfile) query;
+  getPersonalRecord: (exerciseName: text) -> (opt PersonalRecord) query;
+  getPersonalRecords: () -> (vec PersonalRecord) query;
+  getProfile: (userId: text) -> (opt UserProfile) query;
+  getStories: () -> (vec Story) query;
+  getTasksForDate: (date: text) -> (vec Task) query;
+  getUserByUsername: (username: text) -> (opt UserProfile) query;
+  getUserPosts: (userId: text) -> (vec Post) query;
+  getUserStories: (userId: text) -> (vec Story) query;
+  getWaterForDate: (date: text) -> (WaterLog) query;
+  getWeeklySchedule: () -> (vec WeeklyScheduleEntry) query;
+  getWeeklySummary: (startDate: text, endDate: text) ->
+   (record {
+      avgCaloriesPerDay: float64;
+      avgWaterPerDay: float64;
+      workoutsThisWeek: nat;
+    }) query;
+  getWorkoutStreak: () -> (WorkoutStreak) query;
+  getWorkoutsForDate: (date: text) -> (vec Workout) query;
+  getWorkoutsInRange: (startDate: text, endDate: text) -> (vec Workout) query;
+  hasLiked: (postId: nat) -> (bool) query;
+  isFollowing: (targetId: text) -> (bool) query;
+  likePost: (postId: nat) -> ();
+  listFoodPresets: () -> (vec FoodPreset) query;
+  logWater: (date: text, amount: nat) -> (WaterLog);
+  markMessageRead: (messageId: text) -> ();
+  removeReaction: (messageId: text, emoji: text) -> ();
+  saveGoals: (dailyCalorieTarget: nat, weeklyMinWorkouts: nat) -> ();
+  saveWeeklySchedule: (entries: vec WeeklyScheduleEntry) -> ();
+  searchFoodPresets: (nameQuery: text) -> (vec FoodPreset) query;
+  searchUsers: (searchTerm: text) -> (vec UserProfile) query;
+  sendMessage: (recipientId: text, "text": text) -> (Message);
+  sendMessageRequest: (recipientId: text, previewText: text) ->
+   (MessageRequest);
+  suggestMeals: (remainingCalories: float64, remainingProtein: float64,
+   remainingCarbs: float64, remainingFat: float64) -> (vec MealSuggestion);
+  toggleTask: (taskId: nat) -> (bool);
+  unfollowUser: (targetId: text) -> ();
+  unlikePost: (postId: nat) -> ();
+  updateProfile: (username: opt text, email: opt text, phone: opt text, bio:
+   opt text, displayName: opt text, isPublic: opt bool) -> (UserProfile);
+  updateProfilePhoto: (url: text) -> ();
+  updateScheduleEntry: (entry: WeeklyScheduleEntry) -> (bool);
+}
