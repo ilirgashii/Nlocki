@@ -87,6 +87,16 @@ Internet Identity/passkey remains available for the **online build**. It is deli
 
 The email service rejects production settings that enable local testing, non-HTTPS online origins, or missing SMTP configuration. Vite variables are public: never put SMTP passwords or signing keys there. The current Compose file is for local development, not production hosting. Use a separate production authentication store; do not promote unverified local test accounts. Email accounts and Internet Identity accounts are separate identities; linking existing accounts and password reset are not implemented. Do not assume old passkey data transfers to a new email account.
 
+## Nutrition and exercise calories
+
+Recently eaten lists the most recent distinct foods from your saved meal history, including serving size, calories and last logged date. Add again repeats that serving into the selected meal category. Search All Foods uses the backend catalogue; portions are explicit grams (100 g raw apple = 52 kcal, 200 g = 104 kcal). Nutrition uses your saved daily calorie goal.
+
+Exercise logging requires duration, body weight and activity/effort. Estimated calories use `MET × 3.5 × body weight (kg) × minutes / 200`, rounded to kcal. Moderate strength training, including bench press, uses 3.5 MET; vigorous strength training uses 6 MET. The 70 kg starting value is an assumption to replace with your actual body weight. Exercise weight is separate from body weight. Enter each exercise's duration including its rests; do not repeat the entire session duration for every exercise. Duration/body weight/effort and calories persist and can be edited. Old workouts without these inputs remain unestimated until edited.
+
+Dashboard, Nutrition and Fitness show food calories, estimated exercise calories and **food minus exercise** for the same day. This arithmetic is not a full daily calorie deficit or energy requirement: it does not account for the rest of your day's energy use. METs are approximate activity values, not a measurement of an individual's burn; see the [2024 Adult Compendium of Physical Activities](https://pacompendium.com/). No automatic food-goal increase is made for exercise.
+
+Tests: `pnpm test:calories` and `NLOCKI_BASE_URL=<local-email-app> pnpm test:nutrition:browser` check estimates and real apple/snack/repeat-food/workout-edit persistence.
+
 ## Storage
 
 Motoko canister state stores tasks, workouts, meals, water, schedules, goals, profiles, posts, comments, likes, stories, messages and inbox preferences. Data is scoped to the signed account principal. Contacts are owner-only; private posts are unavailable to other accounts, including followers.

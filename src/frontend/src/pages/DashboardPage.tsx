@@ -36,6 +36,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { EnergyBalance } from "../components/EnergyBalance";
 import { MiniProgressBar } from "../components/MiniProgressBar";
 import { StatCard } from "../components/StatCard";
 import {
@@ -689,6 +690,8 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <EnergyBalance date={today} />
 
       {/* ── Macro stat cards ───────────────────────────────────────── */}
       <div

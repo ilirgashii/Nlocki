@@ -150,6 +150,9 @@ export function useDailySummary(date: string) {
       tasksTotal: tasks.length,
       tasksCompleted,
       taskCompletionPct: tasks.length ? tasksCompleted / tasks.length : 0,
+      unestimatedWorkouts: workouts.filter(
+        (w) => w.durationMin <= 0 && w.caloriesBurned <= 0,
+      ).length,
       totalCaloriesBurned: workouts.reduce(
         (sum, w) => sum + w.caloriesBurned,
         0,

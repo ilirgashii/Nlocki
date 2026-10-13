@@ -23,7 +23,9 @@
     "docker:down": "docker compose down",
     "test:docker": "node tests/docker.integration.mjs",
     "test:email": "node tests/email.integration.mjs",
-    "test:email:browser": "node tests/email.browser.mjs"
+    "test:email:browser": "node tests/email.browser.mjs",
+    "test:calories": "node tests/calories.test.mjs",
+    "test:nutrition:browser": "node tests/nutrition-fitness.browser.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.58.2"

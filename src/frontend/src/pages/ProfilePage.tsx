@@ -644,11 +644,6 @@ export default function ProfilePage() {
             {canSeeContent && profile.bio && (
               <p className="text-sm text-muted-foreground">{profile.bio}</p>
             )}
-
-            {/* Unique user ID badge */}
-            <p className="text-xs text-muted-foreground/40 font-mono pt-0.5">
-              ID: {profile.userId.slice(0, 8)}
-            </p>
           </div>
 
           {/* Stats */}

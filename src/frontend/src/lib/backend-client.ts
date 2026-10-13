@@ -54,6 +54,8 @@ export function workoutInput(w: Omit<Workout, "id">): Backend.WorkoutInput {
     details: [
       JSON.stringify({
         durationMin: w.durationMin,
+        bodyWeightKg: w.bodyWeightKg,
+        exerciseMet: w.exerciseMet,
         caloriesBurned: w.caloriesBurned,
         notes: w.notes,
         lastEditedSets: w.lastEditedSets,

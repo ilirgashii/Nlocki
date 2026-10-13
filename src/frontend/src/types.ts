@@ -14,6 +14,8 @@ export interface Workout {
   reps: number;
   weightKg: number;
   durationMin: number;
+  bodyWeightKg?: number;
+  exerciseMet?: number;
   caloriesBurned: number;
   notes: string;
   lastEditedSets?: string;

@@ -25,14 +25,17 @@ import {
   Zap,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { EnergyBalance } from "../components/EnergyBalance";
 import { ExportDialog } from "../components/ExportDialog";
 import {
   todayISO,
   useAddMeal,
   useDeleteMeal,
   useExportNutritionCSV,
+  useGoals,
   useLogWater,
   useMealsForDate,
+  useMealsInRange,
   useSearchFoodPresets,
   useSuggestMeals,
   useWaterForDate,
@@ -57,31 +60,12 @@ const PORTIONS: { label: string; value: number }[] = [
   { label: "2", value: 2 },
 ];
 
-// Popular quick-add foods shown as visual grid buttons
-const QUICK_FOODS = [
-  { id: 1, name: "Rice", emoji: "🍚", kcal: 130, per: "100g" },
-  { id: 8, name: "Chicken", emoji: "🍗", kcal: 165, per: "100g" },
-  { id: 10, name: "Salmon", emoji: "🐟", kcal: 208, per: "100g" },
-  { id: 11, name: "Tuna", emoji: "🐠", kcal: 116, per: "100g" },
-  { id: 13, name: "Eggs", emoji: "🥚", kcal: 155, per: "100g" },
-  { id: 3, name: "Oats", emoji: "🥣", kcal: 71, per: "100g" },
-  { id: 31, name: "Banana", emoji: "🍌", kcal: 89, per: "100g" },
-  { id: 32, name: "Apple", emoji: "🍎", kcal: 52, per: "100g" },
-  { id: 23, name: "Broccoli", emoji: "🥦", kcal: 35, per: "100g" },
-  { id: 25, name: "Sweet Potato", emoji: "🍠", kcal: 90, per: "100g" },
-  { id: 18, name: "Greek Yogurt", emoji: "🫙", kcal: 59, per: "100g" },
-  { id: 19, name: "Cottage Cheese", emoji: "🧀", kcal: 72, per: "100g" },
-  { id: 40, name: "Almonds", emoji: "🌰", kcal: 579, per: "100g" },
-  { id: 41, name: "Peanut Butter", emoji: "🥜", kcal: 588, per: "100g" },
-  { id: 4, name: "Pasta", emoji: "🍝", kcal: 158, per: "100g" },
-  { id: 12, name: "Beef", emoji: "🥩", kcal: 215, per: "100g" },
-];
-
 // ── Open Food Facts types ──────────────────────────────────────────────────────
 interface OFFProduct {
   product_name?: string;
   nutriments?: {
     "energy-kcal_100g"?: number;
+    energy_100g?: number;
     proteins_100g?: number;
     carbohydrates_100g?: number;
     fat_100g?: number;
@@ -111,9 +95,13 @@ async function fetchByBarcode(barcode: string): Promise<ScannedFood | null> {
     const p = data.product;
     const n = p.nutriments ?? {};
     const name = [p.brands, p.product_name].filter(Boolean).join(" — ");
+    const kcal =
+      n["energy-kcal_100g"] ??
+      (n.energy_100g == null ? undefined : n.energy_100g / 4.184);
+    if (kcal == null || !Number.isFinite(kcal) || kcal < 0) return null;
     return {
       name: name || "Unknown product",
-      caloriesPer100g: Math.round(n["energy-kcal_100g"] ?? 0),
+      caloriesPer100g: Math.round(kcal),
       proteinPer100g: Math.round((n.proteins_100g ?? 0) * 10) / 10,
       carbsPer100g: Math.round((n.carbohydrates_100g ?? 0) * 10) / 10,
       fatPer100g: Math.round((n.fat_100g ?? 0) * 10) / 10,
@@ -767,203 +755,91 @@ function WaterIntakeSection({
   );
 }
 
-// ── Quick Food Grid ───────────────────────────────────────────────────────────
-function QuickFoodGrid({
+// Recent foods come from this account's saved meal history, not a fixed catalogue.
+function RecentFoods({
   date,
   defaultMealType,
-}: {
-  date: string;
-  defaultMealType: Meal["mealType"];
-}) {
-  const addMeal = useAddMeal();
-  const { data: allPresets = [] } = useSearchFoodPresets("");
-  const [portionModal, setPortionModal] = useState<{
-    id: number;
-    name: string;
-    emoji: string;
-  } | null>(null);
-  const [portion, setPortion] = useState(1);
+}: { date: string; defaultMealType: Meal["mealType"] }) {
+  const {
+    data: history = [],
+    isPending,
+    isError,
+  } = useMealsInRange("1900-01-01", date);
+  const add = useAddMeal();
   const [mealType, setMealType] = useState<Meal["mealType"]>(defaultMealType);
-
-  function handleQuickFoodClick(food: (typeof QUICK_FOODS)[0]) {
-    setPortionModal({ id: food.id, name: food.name, emoji: food.emoji });
-    setPortion(1);
-  }
-
-  function handlePortionAdd() {
-    if (!portionModal) return;
-    const preset = allPresets.find((p) => p.id === portionModal.id);
-    if (!preset) return;
-    const grams = portion * 100;
-    addMeal.mutate({
-      date,
-      name: `${preset.name} (${grams}g)`,
-      mealType,
-      calories: Math.round((preset.caloriesPer100g * grams) / 100),
-      proteinG: Math.round((preset.proteinPer100g * grams) / 100),
-      carbsG: Math.round((preset.carbsPer100g * grams) / 100),
-      fatG: Math.round((preset.fatPer100g * grams) / 100),
-      notes: "",
-    });
-    setPortionModal(null);
-  }
-
+  const recent = [...history]
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) || (BigInt(a.id) < BigInt(b.id) ? 1 : -1),
+    )
+    .filter(
+      (food, index, all) =>
+        all.findIndex(
+          (other) => other.name.toLowerCase() === food.name.toLowerCase(),
+        ) === index,
+    )
+    .slice(0, 8);
   return (
-    <>
-      <div
-        className="bg-card rounded-2xl border border-border overflow-hidden"
-        data-ocid="nutrition.quick_food_grid"
-      >
-        <div className="px-4 pt-4 pb-2">
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-display font-semibold text-foreground">
-              Ready-Made Foods
-            </h2>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Tap a food to add it — choose your portion size
-          </p>
-        </div>
-        <div className="px-4 pb-4 grid grid-cols-4 gap-2">
-          {QUICK_FOODS.map((food, i) => (
-            <button
-              key={food.id}
-              type="button"
-              onClick={() => handleQuickFoodClick(food)}
-              data-ocid={`nutrition.quick_food.${i + 1}`}
-              className="flex flex-col items-center gap-1 py-3 px-1 rounded-xl border border-border bg-background hover:bg-primary/5 hover:border-primary/30 transition-smooth active:scale-95 group"
-            >
-              <span className="text-2xl leading-none">{food.emoji}</span>
-              <span className="text-[10px] font-semibold text-foreground text-center leading-tight line-clamp-2 group-hover:text-primary transition-smooth">
-                {food.name}
-              </span>
-              <span className="text-[9px] text-muted-foreground font-medium">
-                {food.kcal} kcal
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Portion picker modal */}
-      {portionModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/30 backdrop-blur-sm p-4"
-          data-ocid="nutrition.portion_dialog"
+    <section
+      className="rounded-2xl border bg-card p-4 space-y-3"
+      data-ocid="nutrition.recent_foods"
+    >
+      <h2 className="text-sm font-semibold">Recently eaten</h2>
+      <p className="text-xs text-muted-foreground">
+        Your latest saved foods and portions. Add the same serving again.
+      </p>
+      <label className="flex items-center gap-2 text-sm">
+        Add to
+        <select
+          aria-label="Recent food meal type"
+          value={mealType}
+          onChange={(e) => setMealType(e.target.value as Meal["mealType"])}
+          className="rounded-lg border bg-background p-2"
         >
-          <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-elevated overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary/5">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{portionModal.emoji}</span>
-                <span className="text-sm font-display font-semibold text-foreground">
-                  {portionModal.name}
-                </span>
+          {(["breakfast", "lunch", "dinner", "snack"] as const).map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </label>
+      {isPending ? (
+        <p className="text-sm text-muted-foreground">
+          Loading your food history…
+        </p>
+      ) : isError ? (
+        <p role="alert">Could not load recent foods.</p>
+      ) : recent.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No foods logged yet. Search All Foods below to add your first meal.
+        </p>
+      ) : (
+        <ul className="divide-y">
+          {recent.map((food) => (
+            <li key={food.id} className="flex items-center gap-3 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm break-words">{food.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {food.calories} kcal · Last logged {food.date} ·{" "}
+                  {food.mealType}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setPortionModal(null)}
-                aria-label="Close"
-                data-ocid="nutrition.portion_close"
-                className="p-1 text-muted-foreground hover:text-foreground transition-smooth"
+              <Button
+                size="sm"
+                disabled={add.isPending}
+                aria-label={`Add ${food.name} again`}
+                onClick={() => {
+                  const { id: _id, ...serving } = food;
+                  add.mutate({ ...serving, date, mealType });
+                }}
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-4 py-4 space-y-4">
-              {/* Meal type */}
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Add to
-                </p>
-                <div className="flex gap-1 flex-wrap">
-                  {(["breakfast", "lunch", "dinner", "snack"] as const).map(
-                    (t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setMealType(t)}
-                        data-ocid={`nutrition.portion_meal_type.${t}`}
-                        className={`px-3 py-1 text-xs rounded-full font-medium transition-smooth capitalize ${
-                          mealType === t
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-              {/* Portion selector */}
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Portion size
-                </p>
-                <div className="grid grid-cols-4 gap-2">
-                  {PORTIONS.map((p) => {
-                    const preset = allPresets.find(
-                      (pr) => pr.id === portionModal.id,
-                    );
-                    const cal = preset
-                      ? Math.round(
-                          (preset.caloriesPer100g * p.value * 100) / 100,
-                        )
-                      : 0;
-                    return (
-                      <button
-                        key={p.value}
-                        type="button"
-                        onClick={() => setPortion(p.value)}
-                        data-ocid={`nutrition.portion_size.${p.label}`}
-                        className={`flex flex-col items-center py-3 rounded-xl border font-semibold transition-smooth ${
-                          portion === p.value
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground bg-background"
-                        }`}
-                      >
-                        <span className="text-sm leading-none">{p.label}×</span>
-                        <span
-                          className={`text-[10px] mt-1 leading-none ${portion === p.value ? "text-primary-foreground/70" : "text-muted-foreground"}`}
-                        >
-                          {cal} kcal
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPortionModal(null)}
-                  data-ocid="nutrition.portion_cancel"
-                  className="flex-1 h-10"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handlePortionAdd}
-                  disabled={addMeal.isPending}
-                  data-ocid="nutrition.portion_confirm"
-                  className="flex-1 h-10"
-                >
-                  {addMeal.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-                  ) : (
-                    <Plus className="w-4 h-4 mr-1.5" />
-                  )}
-                  Add to {mealType}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+                Add again
+              </Button>
+            </li>
+          ))}
+        </ul>
       )}
-    </>
+    </section>
   );
 }
 
@@ -1381,7 +1257,7 @@ function PresetRow({
           {preset.category}
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <fieldset
           className="flex gap-1 border-none p-0 m-0"
           data-ocid={`nutrition.preset_portion.${index + 1}`}
@@ -1398,10 +1274,20 @@ function PresetRow({
                   : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground bg-background"
               }`}
             >
-              {p.label}×
+              {p.value * 100}g
             </button>
           ))}
         </fieldset>
+        <Input
+          aria-label={`${preset.name} portion in grams`}
+          type="number"
+          min={1}
+          max={5000}
+          step={1}
+          className="w-20 h-8 shrink-0"
+          value={grams || ""}
+          onChange={(e) => onPortionChange(Number(e.target.value) / 100)}
+        />
         <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
           <span className="text-xs font-bold text-primary whitespace-nowrap">
             {cal} kcal
@@ -1413,7 +1299,12 @@ function PresetRow({
         <Button
           size="sm"
           onClick={onAdd}
-          disabled={isPending}
+          disabled={
+            isPending ||
+            !Number.isFinite(selectedPortion) ||
+            selectedPortion <= 0 ||
+            selectedPortion > 50
+          }
           data-ocid={`nutrition.preset_add_button.${index + 1}`}
           className="shrink-0 h-7 px-3 text-xs"
         >
@@ -1448,6 +1339,7 @@ function FoodSearchPanel({
   function handleAdd(preset: FoodPreset) {
     const portion = getPortionFor(preset.id);
     const grams = portion * 100;
+    if (!Number.isFinite(grams) || grams < 1 || grams > 5000) return;
     addMeal.mutate({
       date,
       name: `${preset.name} (${grams}g)`,
@@ -1480,7 +1372,7 @@ function FoodSearchPanel({
             Search All Foods
           </span>
           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-            48 presets
+            Food catalogue
           </span>
         </div>
         {isOpen ? (
@@ -1843,6 +1735,8 @@ function FoodSearchBar({
 // ── NutritionPage ─────────────────────────────────────────────────────────────
 export default function NutritionPage() {
   const today = todayISO();
+  const { data: goals } = useGoals();
+  const calorieTarget = goals?.dailyCalorieTarget ?? GOALS.calories;
   const [selectedDate, setSelectedDate] = useState(today);
   const [addingFor, setAddingFor] = useState<Meal["mealType"] | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -1872,7 +1766,7 @@ export default function NutritionPage() {
     {
       label: "Calories",
       current: totalCal,
-      target: GOALS.calories,
+      target: calorieTarget,
       unit: "kcal",
       color: "oklch(var(--primary))",
       bgColor: "oklch(var(--primary) / 0.12)",
@@ -1941,7 +1835,7 @@ export default function NutritionPage() {
                 {totalCal.toLocaleString()}
               </span>
               <p className="text-xs text-muted-foreground">
-                / {GOALS.calories} kcal
+                / {calorieTarget} kcal
               </p>
             </div>
           </div>
@@ -1954,13 +1848,15 @@ export default function NutritionPage() {
           onSelect={setSelectedDate}
         />
 
+        <EnergyBalance date={selectedDate} />
+
         {/* Macro progress bars */}
         <MacroBars items={macroItems} />
 
         {/* Meal Suggestions */}
         <MealSuggestionsPanel
           date={selectedDate}
-          remainingCalories={GOALS.calories - totalCal}
+          remainingCalories={calorieTarget - totalCal}
           remainingProtein={GOALS.protein - totalProt}
           remainingCarbs={GOALS.carbs - totalCarb}
           remainingFat={GOALS.fat - totalFat}
@@ -1969,8 +1865,8 @@ export default function NutritionPage() {
         {/* Water Intake Today */}
         <WaterIntakeSection date={selectedDate} waterMl={waterMl} />
 
-        {/* Ready-made food grid */}
-        <QuickFoodGrid
+        {/* Recent meals from saved account history */}
+        <RecentFoods
           date={selectedDate}
           defaultMealType={addingFor ?? "breakfast"}
         />

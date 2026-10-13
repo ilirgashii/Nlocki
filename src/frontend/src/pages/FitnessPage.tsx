@@ -23,6 +23,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "../components/EmptyState";
+import { EnergyBalance } from "../components/EnergyBalance";
 import { ExportDialog } from "../components/ExportDialog";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import {
@@ -45,6 +46,10 @@ import {
   useWorkoutStreak,
   useWorkoutsForDate,
 } from "../hooks/use-backend";
+import {
+  EXERCISE_INTENSITIES,
+  estimateExerciseCalories,
+} from "../lib/calories";
 import type {
   DayOfWeek,
   PersonalRecord,
@@ -534,6 +539,9 @@ interface FormState {
   reps: string;
   weight: string;
   weightUnit: "kg" | "lbs";
+  duration: string;
+  bodyWeight: string;
+  met: string;
 }
 
 function WorkoutForm({
@@ -553,6 +561,9 @@ function WorkoutForm({
     reps: "",
     weight: "",
     weightUnit: "kg",
+    duration: "",
+    bodyWeight: "70",
+    met: "3.5",
   });
   const add = useAddWorkout();
 
@@ -582,6 +593,19 @@ function WorkoutForm({
       toast.error("Please fill in sets and reps.");
       return;
     }
+    let caloriesBurned: number;
+    try {
+      caloriesBurned = estimateExerciseCalories(
+        Number(form.duration),
+        Number(form.bodyWeight),
+        Number(form.met),
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Check your calorie inputs.",
+      );
+      return;
+    }
     const now = new Date().toISOString();
     await add.mutateAsync({
       date,
@@ -589,8 +613,10 @@ function WorkoutForm({
       sets,
       reps,
       weightKg: Math.round(weightKg * 100) / 100,
-      durationMin: 0,
-      caloriesBurned: 0,
+      durationMin: Number(form.duration),
+      caloriesBurned,
+      bodyWeightKg: Number(form.bodyWeight),
+      exerciseMet: Number(form.met),
       notes: "",
       lastEditedSets: now,
       lastEditedReps: now,
@@ -598,7 +624,7 @@ function WorkoutForm({
     });
     setSelectedExercise(null);
     onPrefilledClear?.();
-    setForm({ sets: "", reps: "", weight: "", weightUnit: form.weightUnit });
+    setForm({ ...form, sets: "", reps: "", weight: "", duration: "" });
     toast.success(`${selectedExercise.name} logged!`);
   }
 
@@ -711,6 +737,77 @@ function WorkoutForm({
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ex-duration">Exercise duration (minutes)</Label>
+            <Input
+              id="ex-duration"
+              type="number"
+              min={1}
+              max={600}
+              step="any"
+              required
+              value={form.duration}
+              onChange={update("duration")}
+              data-ocid="fitness.duration_input"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ex-body-weight">Your body weight (kg)</Label>
+            <Input
+              id="ex-body-weight"
+              type="number"
+              min={20}
+              max={400}
+              step="any"
+              required
+              value={form.bodyWeight}
+              onChange={update("bodyWeight")}
+              data-ocid="fitness.body_weight_input"
+            />
+            <p className="text-xs text-muted-foreground">
+              70 kg is a starting value. Enter your actual weight; this is
+              separate from the weight you lift.
+            </p>
+          </div>
+          <div className="sm:col-span-2 space-y-2">
+            <Label htmlFor="ex-intensity">Activity / effort</Label>
+            <select
+              id="ex-intensity"
+              value={form.met}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, met: e.target.value }))
+              }
+              className="w-full rounded-lg border bg-background p-2"
+            >
+              {EXERCISE_INTENSITIES.map((level) => (
+                <option key={level.label} value={level.met}>
+                  {level.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Use the duration of this exercise, including its rests, not the
+              whole session for every exercise. This MET-based estimate varies
+              by person.
+            </p>
+            {Number(form.duration) > 0 &&
+              Number(form.bodyWeight) >= 20 &&
+              Number(form.bodyWeight) <= 400 &&
+              Number(form.duration) <= 600 && (
+                <p
+                  className="font-semibold text-primary"
+                  data-ocid="fitness.burn_preview"
+                >
+                  Estimated burn:{" "}
+                  {estimateExerciseCalories(
+                    Number(form.duration),
+                    Number(form.bodyWeight),
+                    Number(form.met),
+                  )}{" "}
+                  kcal
+                </p>
+              )}
+          </div>
           <div className="sm:col-span-2 pt-1">
             <Button
               type="submit"
@@ -736,7 +833,7 @@ function WorkoutEditRow({
   index,
 }: {
   workout: Workout;
-  onUpdate: (updated: Workout) => void;
+  onUpdate: (updated: Workout) => Promise<unknown>;
   onDelete: (id: string) => void;
   deleting: boolean;
   index: number;
@@ -748,7 +845,13 @@ function WorkoutEditRow({
     String(w.weightKg > 0 ? w.weightKg : ""),
   );
 
-  function handleSave() {
+  const [duration, setDuration] = useState(
+    w.durationMin ? String(w.durationMin) : "",
+  );
+  const [bodyWeight, setBodyWeight] = useState(String(w.bodyWeightKg ?? 70));
+  const [met, setMet] = useState(String(w.exerciseMet ?? 3.5));
+  const [saving, setSaving] = useState(false);
+  async function handleSave() {
     const now = new Date().toISOString();
     const newSets = Number.parseInt(sets, 10);
     const newReps = Number.parseInt(reps, 10);
@@ -762,20 +865,44 @@ function WorkoutEditRow({
       toast.error("Sets and reps must be positive numbers.");
       return;
     }
-    onUpdate({
-      ...w,
-      sets: newSets,
-      reps: newReps,
-      weightKg: newWeight,
-      lastEditedSets: sets !== String(w.sets) ? now : w.lastEditedSets,
-      lastEditedReps: reps !== String(w.reps) ? now : w.lastEditedReps,
-      lastEditedWeight:
-        weight !== String(w.weightKg > 0 ? w.weightKg : "")
-          ? now
-          : w.lastEditedWeight,
-    });
-    setEditing(false);
-    toast.success("Workout updated.");
+    let caloriesBurned: number;
+    try {
+      caloriesBurned = estimateExerciseCalories(
+        Number(duration),
+        Number(bodyWeight),
+        Number(met),
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Check your calorie inputs.",
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      await onUpdate({
+        ...w,
+        durationMin: Number(duration),
+        bodyWeightKg: Number(bodyWeight),
+        exerciseMet: Number(met),
+        caloriesBurned,
+        sets: newSets,
+        reps: newReps,
+        weightKg: newWeight,
+        lastEditedSets: sets !== String(w.sets) ? now : w.lastEditedSets,
+        lastEditedReps: reps !== String(w.reps) ? now : w.lastEditedReps,
+        lastEditedWeight:
+          weight !== String(w.weightKg > 0 ? w.weightKg : "")
+            ? now
+            : w.lastEditedWeight,
+      });
+      setEditing(false);
+      toast.success("Workout updated.");
+    } catch {
+      toast.error("Could not save changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (editing) {
@@ -836,10 +963,54 @@ function WorkoutEditRow({
             </div>
           ))}
         </div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <label htmlFor={`edit-duration-${w.id}`} className="text-xs">
+            Duration (minutes)
+            <Input
+              id={`edit-duration-${w.id}`}
+              aria-label="Edit exercise duration"
+              type="number"
+              min={1}
+              max={600}
+              step="any"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            />
+          </label>
+          <label htmlFor={`edit-body-weight-${w.id}`} className="text-xs">
+            Body weight (kg)
+            <Input
+              id={`edit-body-weight-${w.id}`}
+              aria-label="Edit body weight"
+              type="number"
+              min={20}
+              max={400}
+              step="any"
+              value={bodyWeight}
+              onChange={(e) => setBodyWeight(e.target.value)}
+            />
+          </label>
+          <label className="text-xs col-span-2">
+            Activity / effort
+            <select
+              aria-label="Edit exercise intensity"
+              className="w-full rounded border bg-background p-2"
+              value={met}
+              onChange={(e) => setMet(e.target.value)}
+            >
+              {EXERCISE_INTENSITIES.map((level) => (
+                <option key={level.label} value={level.met}>
+                  {level.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="flex gap-2">
           <Button
             size="sm"
             onClick={handleSave}
+            disabled={saving}
             className="gradient-pink-accent text-primary-foreground font-semibold text-xs h-7"
             data-ocid={`fitness.save_edit_button.${index + 1}`}
           >
@@ -908,6 +1079,11 @@ function WorkoutEditRow({
             </div>
           </div>
         </div>
+        <span className="text-xs text-primary">
+          {w.durationMin > 0 || w.caloriesBurned > 0
+            ? `${w.durationMin} min · ~${w.caloriesBurned} kcal`
+            : "Add duration to estimate calories"}
+        </span>
         <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 transition-smooth">
           tap to edit
         </span>
@@ -927,7 +1103,6 @@ function DailyLogPanel({
   const { data: workouts, isLoading } = useWorkoutsForDate(date);
   const del = useDeleteWorkout();
   const update = useUpdateWorkout();
-  const addWorkout = useAddWorkout();
   const list = workouts ?? [];
   const [prefilledExercise, setPrefilledExercise] = useState<Exercise | null>(
     null,
@@ -937,24 +1112,6 @@ function DailyLogPanel({
   const plannedExercises = scheduleEntries.filter(
     (e) => !loggedNames.has(e.exerciseName),
   );
-
-  async function handleLogPlanned(entry: WeeklyScheduleEntry) {
-    const now = new Date().toISOString();
-    await addWorkout.mutateAsync({
-      date,
-      name: entry.exerciseName,
-      sets: entry.sets,
-      reps: entry.reps,
-      weightKg: entry.weightKg,
-      durationMin: 0,
-      caloriesBurned: 0,
-      notes: "",
-      lastEditedSets: now,
-      lastEditedReps: now,
-      lastEditedWeight: entry.weightKg > 0 ? now : undefined,
-    });
-    toast.success(`${entry.exerciseName} logged from schedule!`);
-  }
 
   const dayLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
     weekday: "long",
@@ -1013,16 +1170,6 @@ function DailyLogPanel({
                   >
                     Log
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => handleLogPlanned(entry)}
-                    disabled={addWorkout.isPending}
-                    className="text-xs gradient-pink-accent text-primary-foreground h-7 shrink-0"
-                    data-ocid={`fitness.quick_log_button.${entry.id}`}
-                  >
-                    <Check className="w-3 h-3 mr-1" />
-                    Quick Log
-                  </Button>
                 </div>
               ))}
             </div>
@@ -1031,6 +1178,7 @@ function DailyLogPanel({
       )}
 
       {/* Add workout form */}
+      <EnergyBalance date={date} />
       <WorkoutForm
         date={date}
         prefilledExercise={prefilledExercise}
@@ -1068,10 +1216,14 @@ function DailyLogPanel({
                     workout={w}
                     index={i}
                     onUpdate={(updated) => {
-                      update.mutate({
+                      return update.mutateAsync({
                         oldId: updated.id,
                         date,
                         updates: {
+                          durationMin: updated.durationMin,
+                          caloriesBurned: updated.caloriesBurned,
+                          bodyWeightKg: updated.bodyWeightKg,
+                          exerciseMet: updated.exerciseMet,
                           sets: updated.sets,
                           reps: updated.reps,
                           weightKg: updated.weightKg,
