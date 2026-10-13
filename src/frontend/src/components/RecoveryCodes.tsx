@@ -7,7 +7,7 @@ export function RecoveryCodes() {
     const url = URL.createObjectURL(
       new Blob(
         [
-          `Nlock'i recovery codes\nKeep offline. Each code works once; your Internet Identity is also required.\n\n${recoveryCodes.join("\n")}\n`,
+          `Nlock'i recovery codes\nKeep offline. Each code works once; your original email/passkey sign-in is also required.\n\n${recoveryCodes.join("\n")}\n`,
         ],
         { type: "text/plain" },
       ),
@@ -26,7 +26,7 @@ export function RecoveryCodes() {
         <p className="text-sm text-muted-foreground">
           Save these recovery codes offline before continuing. They are shown
           only now. Each works once if you lose your authenticator; you still
-          need Internet Identity.
+          need your original email or passkey sign-in.
         </p>
         <div className="rounded-xl bg-muted p-4 font-mono text-center space-y-3">
           {recoveryCodes.map((code) => (

@@ -21,7 +21,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
-  const { isAuthenticated, clear } = useInternetIdentity();
+  const { isAuthenticated, clear, userId } = useInternetIdentity();
   const { data: profile } = useMyProfile();
   const { data: unreadCount = 0 } = useUnreadCount();
 
@@ -138,7 +138,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               className="gap-2 cursor-pointer"
               data-ocid="header.profile_link"
             >
-              <Link to="/people">
+              <Link to="/profile/$userId" params={{ userId }}>
                 <User className="w-4 h-4" />
                 My profile
               </Link>

@@ -17,6 +17,8 @@ Use the existing checkout. Cloud tasks are isolated; do not create a worktree un
 - Docker development: `docker compose up --build -d`; persistent named volume, loopback ports only.
 - Backend integration: `pnpm test:backend` with local replica running.
 - Persistence integration: `pnpm test:persistence` (upgrades/restarts only the local replica).
+- Email authentication integration: `pnpm test:email`; local email UI: `pnpm test:email:browser`.
+- Node runtime: 24+ (built-in SQLite). Local Docker/dev uses email/password with optional verification; passkeys are for the online frontend.
 - Browser integration: `pnpm test:browser`; Chromium required, optional PLAYWRIGHT_CHROMIUM_PATH and NLOCKI_BASE_URL.
 
 Keep authentication real, isolate query caches per authenticated principal, and keep user data on the backend. Never introduce mock users or browser-only social/message storage. Preserve stable data shapes and test upgrades before changing them. Never commit identity keys, .dfx state, .env.local, node_modules, or .build outputs. Public deployment and actual Git push require the user's instruction.

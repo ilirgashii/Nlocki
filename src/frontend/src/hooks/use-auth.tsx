@@ -12,6 +12,12 @@ import {
   useState,
 } from "react";
 import { type BackendActor, connectBackend } from "../lib/backend-client";
+import {
+  emailAuthEnabled,
+  emailIdentity,
+  emailRequest,
+  localEmailMode,
+} from "../lib/email-auth";
 
 type Auth = {
   identity?: Identity;
@@ -25,6 +31,12 @@ type Auth = {
   recoveryCodes: string[];
   dismissRecoveryCodes: () => void;
   login: () => void;
+  emailLogin: (
+    action: "signup" | "login" | "verify",
+    email: string,
+    password: string,
+    code?: string,
+  ) => Promise<boolean>;
   clear: () => Promise<void>;
   verifySecondFactor: (code: string) => Promise<void>;
   confirmSecondFactor: (code: string) => Promise<string[]>;
@@ -55,6 +67,9 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
   const [loginError, setError] = useState<Error>();
   const qc = useQueryClient();
   const authGeneration = useRef(0);
+  const authMethod = useRef<"email" | "passkey">(
+    localEmailMode ? "email" : "passkey",
+  );
   const loadSecurity = useCallback(async (id: Identity) => {
     const generation = ++authGeneration.current;
     setIdentity(undefined);
@@ -79,6 +94,21 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let active = true;
     let idleClient: AuthClient | undefined;
+    if (localEmailMode) {
+      emailIdentity("session")
+        .then(async (id) => {
+          if (active && id) await loadSecurity(id);
+        })
+        .catch(() => {
+          /* No persisted email session; show the sign-in form. */
+        })
+        .finally(() => {
+          if (active) setInitializing(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
     AuthClient.create({
       idleOptions: {
         idleTimeout: 30 * 60 * 1000,
@@ -96,7 +126,18 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
         setClient(auth);
         if (await auth.isAuthenticated())
           await loadSecurity(auth.getIdentity());
-        else setInitializing(false);
+        else if (emailAuthEnabled) {
+          try {
+            const id = await emailIdentity("session");
+            if (active && id) {
+              authMethod.current = "email";
+              await loadSecurity(id);
+            }
+          } catch {
+            /* No saved email session. */
+          }
+          if (active) setInitializing(false);
+        } else setInitializing(false);
       })
       .catch((error) => {
         if (active) {
@@ -109,7 +150,7 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
     };
   }, [qc, loadSecurity]);
   useEffect(() => {
-    if (!client || !primaryIdentity) return;
+    if (!client || !primaryIdentity || authMethod.current === "email") return;
     const timer = window.setInterval(async () => {
       if (!(await client.isAuthenticated())) {
         authGeneration.current += 1;
@@ -139,6 +180,44 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
     );
     return () => window.clearTimeout(timer);
   }, [identity, primaryIdentity, qc]);
+  async function emailLogin(
+    action: "signup" | "login" | "verify",
+    email: string,
+    password: string,
+    code?: string,
+  ) {
+    const generation = authGeneration.current;
+    setLoggingIn(true);
+    setError(undefined);
+    try {
+      const id = await emailIdentity(action, { email, password, code });
+      if (generation !== authGeneration.current)
+        throw new Error("Sign-in changed. Please try again.");
+      if (!id) return false;
+      authMethod.current = "email";
+      qc.clear();
+      await loadSecurity(id);
+      return true;
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+  // Email delegations expire after 30 minutes; require a fresh sign-in, not stale requests.
+  useEffect(() => {
+    if (authMethod.current !== "email" || !primaryIdentity) return;
+    const timer = window.setTimeout(
+      () => {
+        authGeneration.current += 1;
+        qc.clear();
+        setIdentity(undefined);
+        setPrimary(undefined);
+        setRequired(false);
+        setRecoveryCodes([]);
+      },
+      29 * 60 * 1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [primaryIdentity, qc]);
   function login() {
     if (!client) {
       setError(
@@ -155,6 +234,7 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
           "https://identity.internetcomputer.org",
         maxTimeToLive: 8n * 60n * 60n * 1_000_000_000n,
         onSuccess: async () => {
+          authMethod.current = "passkey";
           qc.clear();
           await loadSecurity(client.getIdentity());
           setLoggingIn(false);
@@ -227,6 +307,10 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
         /* Local logout still clears credentials when offline. */
       }
     }
+    if (emailAuthEnabled)
+      await emailRequest("logout", {}).catch(() => {
+        /* Clear local state even if offline. */
+      });
     await client?.logout();
     setRecoveryCodes([]);
     qc.clear();
@@ -249,6 +333,7 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
         secondFactorRequired,
         loginError,
         login,
+        emailLogin,
         clear,
         verifySecondFactor,
         confirmSecondFactor,

@@ -12,9 +12,11 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { useState } from "react";
+import { EmailLogin } from "../components/EmailLogin";
 import { useInternetIdentity } from "../hooks/use-auth";
 import { useUpdateProfile } from "../hooks/use-backend";
 import { useTheme } from "../hooks/use-theme";
+import { emailAuthEnabled, localEmailMode } from "../lib/email-auth";
 
 export default function LoginPage() {
   const { login, isLoggingIn, isInitializing, isAuthenticated, loginError } =
@@ -145,6 +147,22 @@ export default function LoginPage() {
                 {save.isPending ? "Saving…" : "Save profile"}
               </Button>
             </form>
+          ) : emailAuthEnabled ? (
+            <div className="space-y-4">
+              <EmailLogin />
+              {!localEmailMode && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={login}
+                  disabled={isLoggingIn || isInitializing}
+                >
+                  <Fingerprint />
+                  Login with Internet Identity
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               <h2 className="text-xl font-semibold text-center">Welcome</h2>
@@ -169,7 +187,9 @@ export default function LoginPage() {
           )}
           <div className="border-t pt-4 flex gap-2 items-center justify-center text-xs text-muted-foreground">
             <ShieldCheck size={14} />
-            Passkey sign-in · Optional authenticator 2FA
+            {emailAuthEnabled
+              ? "Email sign-in · Optional authenticator 2FA"
+              : "Passkey sign-in · Optional authenticator 2FA"}
           </div>
         </div>
       </div>

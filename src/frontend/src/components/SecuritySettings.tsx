@@ -52,7 +52,7 @@ export function SecuritySettings() {
         <div>
           <h2 className="font-semibold">Account security</h2>
           <p className="text-sm text-muted-foreground">
-            Passkey sign-in + optional authenticator verification
+            Optional authenticator verification after sign-in
           </p>
         </div>
       </div>
@@ -75,7 +75,7 @@ export function SecuritySettings() {
           <h3 className="font-semibold">Save your recovery codes now</h3>
           <p className="text-sm text-muted-foreground">
             Keep these offline. They are shown once and each works once. You
-            still need your Internet Identity to sign in.
+            still need your original email or passkey sign-in.
           </p>
           <div className="rounded-xl bg-muted p-4 font-mono text-sm space-y-2">
             {recovery.map((c) => (

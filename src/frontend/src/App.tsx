@@ -74,7 +74,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="p-8 space-y-4">
         <h1 className="text-xl font-bold">Unable to verify your account</h1>
-        <p role="alert">{loginError.message}</p>
+        <p
+          role="alert"
+          className="text-sm text-muted-foreground break-words max-w-xl"
+        >
+          Could not verify this session. Sign out and try again. For local
+          testing, use email sign-in with the latest Docker setup.
+        </p>
         <button type="button" onClick={() => void refreshSecurity()}>
           Retry
         </button>

@@ -2,7 +2,7 @@
   "name": "nlocki",
   "type": "module",
   "engines": {
-    "node": ">=22.12.0",
+    "node": ">=24.0.0",
     "pnpm": ">=10.0.0 <11",
     "npm": "please use pnpm"
   },
@@ -21,10 +21,16 @@
     "test:security": "node tests/security.integration.mjs",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
-    "test:docker": "node tests/docker.integration.mjs"
+    "test:docker": "node tests/docker.integration.mjs",
+    "test:email": "node tests/email.integration.mjs",
+    "test:email:browser": "node tests/email.browser.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.58.2"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@icp-sdk/core": "~4.1.1",
+    "nodemailer": "^10.1.0"
+  }
 }

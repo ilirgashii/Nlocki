@@ -11,3 +11,5 @@ node_modules
 **/.env.local
 canister_ids.json
 *.log
+
+.local-auth
