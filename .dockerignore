@@ -1,0 +1,13 @@
+.git
+node_modules
+**/node_modules
+.dfx
+.mops
+.build
+.old
+.tools
+.env
+.env.*
+**/.env.local
+canister_ids.json
+*.log

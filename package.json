@@ -2,7 +2,7 @@
   "name": "nlocki",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.12.0",
     "pnpm": ">=10.0.0 <11",
     "npm": "please use pnpm"
   },
@@ -16,11 +16,15 @@
     "generate": "dfx generate backend",
     "test:backend": "node tests/backend.integration.mjs",
     "test:persistence": "node tests/backend.integration.mjs --persistence",
-    "test:browser": "node tests/browser.integration.mjs"
+    "test:browser": "node tests/browser.integration.mjs",
+    "test:totp": "bash scripts/test-totp.sh",
+    "test:security": "node tests/security.integration.mjs",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "test:docker": "node tests/docker.integration.mjs"
   },
   "devDependencies": {
-    "playwright-core": "1.58.2",
-    "sharp": "^0.34.4"
+    "playwright-core": "1.58.2"
   },
   "private": true
 }

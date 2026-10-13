@@ -4,7 +4,7 @@ Fitness, nutrition, planning and social app built with React and a Motoko backen
 
 ## Run locally
 
-Requirements: Node.js 20+, pnpm 10 (tested with 10.34.0), [DFX 0.29.2](https://internetcomputer.org/docs/building-apps/getting-started/install), and Mops 3.5.0 (`npm install -g ic-mops@3.5.0`). Motoko 1.3.0 and core 2.2.0 are pinned in `mops.toml`/`mops.lock`.
+Requirements: Node.js 22.12+ (Docker uses Node 24), pnpm 10 (tested with 10.34.0), [DFX 0.29.2](https://internetcomputer.org/docs/building-apps/getting-started/install), and Mops 3.5.0 (`npm install -g ic-mops@3.5.0`). Motoko 1.3.0 and core 2.2.0 are pinned in `mops.toml`/`mops.lock`.
 
 From the repository root:
 
@@ -18,6 +18,32 @@ The dev command installs locked Motoko dependencies, starts a persistent local r
 Sign in with Internet Identity. First sign-in asks for a unique username and an optional display name; accounts start private. No application password is collected. Internet Identity requires browser passkey/device authentication, so its interactive production sign-in must also be checked on the final public origin.
 
 For a frontend connected to an existing deployment, set `VITE_BACKEND_CANISTER_ID` and `VITE_BACKEND_HOST` through process variables or an ignored `src/frontend/.env.local`. `VITE_IDENTITY_PROVIDER` optionally selects a different Internet Identity deployment. These IDs/URLs are public configuration, not private keys. DFX deployment injects the backend ID into the frontend build automatically.
+
+## Authenticator security
+
+Enable two-factor authentication under your own profile's Security panel. Scan the QR with a SHA-256 compatible authenticator such as 2FAS or Aegis, then enter its six-digit code. Save the four recovery codes offline; they are shown once and each works once. Losing your authenticator and all recovery codes prevents access to that account.
+
+The backend enforces 2FA for protected data requests, rejects reused TOTP codes, and locks code verification for five minutes after five failures. Verified session keys stay in browser memory and expire after 30 minutes; a reload asks for verification again. Internet Identity remains the primary authentication provider.
+
+## Docker development
+
+Install Docker with Compose, then run from the repository root:
+
+```bash
+docker compose up --build -d
+docker compose logs -f app
+```
+
+Open the app on your own computer at port 5173. The local backend uses port 4943. Both ports bind only to host loopback. The first build downloads the toolchain and dependencies; the first startup deploys the local backend.
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+To check restart persistence, set `NLOCKI_DOCKER_CONTAINER` to the running Compose container name and run `pnpm test:docker`. Optional `NLOCKI_BASE_URL` and `NLOCKI_BACKEND_HOST` select different test ports. This test restarts that local container.
+
+The named `nlocki-data` volume preserves the replica and local identities across restarts. Do not use `down -v` unless you intend to erase local data. This is a development container with Vite, not a public production hosting configuration. Linux AMD64 is used, including emulation on ARM hosts.
 
 ## Data and image storage
 
@@ -37,6 +63,8 @@ mops check
 pnpm typecheck
 pnpm check
 pnpm build
+pnpm test:totp
+pnpm test:security
 pnpm test:backend
 pnpm test:persistence
 ```
@@ -56,6 +84,6 @@ Before public launch:
 - Fund the production canisters, configure the final domain, and test Internet Identity with two real accounts on that origin.
 - Establish canister snapshots/backups, restoration checks, cycle/storage monitoring, and an upgrade procedure that preserves state.
 - Add moderation/reporting, upload quotas/rate limits and account/data deletion for a public social service. Review privacy and retention rules.
-- Optimize the frontend bundle and consider object storage if photo volume grows. Barcode lookup optionally uses Open Food Facts and depends on that external service.
+- Add pagination and dedicated object storage if photo volume grows; large collections can exceed IC response limits. Barcode lookup optionally uses Open Food Facts and depends on that external service.
 
 Code changes and local deployment do not automatically push to GitHub or publish the cloud environment.

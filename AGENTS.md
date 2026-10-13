@@ -12,6 +12,9 @@ Use the existing checkout. Cloud tasks are isolated; do not create a worktree un
 - Generate declarations after API changes: `pnpm generate`.
 - Frontend checks: `pnpm typecheck`, `pnpm check`.
 - Frontend build: `pnpm build` (output `.build/frontend`).
+- Authenticator vectors: `pnpm test:totp`.
+- Backend 2FA security integration: `pnpm test:security`.
+- Docker development: `docker compose up --build -d`; persistent named volume, loopback ports only.
 - Backend integration: `pnpm test:backend` with local replica running.
 - Persistence integration: `pnpm test:persistence` (upgrades/restarts only the local replica).
 - Browser integration: `pnpm test:browser`; Chromium required, optional PLAYWRIGHT_CHROMIUM_PATH and NLOCKI_BASE_URL.

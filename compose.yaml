@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:5173:5173"
+      - "127.0.0.1:4943:4943"
+    volumes:
+      - nlocki-data:/data
+    environment:
+      VITE_IDENTITY_PROVIDER: https://identity.internetcomputer.org
+    stop_grace_period: 60s
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 180s
+      retries: 5
+volumes:
+  nlocki-data:

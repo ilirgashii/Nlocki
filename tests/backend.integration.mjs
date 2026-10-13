@@ -7,9 +7,9 @@ const requireFrontend = createRequire(new URL('../src/frontend/package.json', im
 const { Actor, HttpAgent, AnonymousIdentity } = requireFrontend('@icp-sdk/core/agent');
 const { Ed25519KeyIdentity } = requireFrontend('@icp-sdk/core/identity');
 const dfx = process.env.NLOCKI_DFX || 'dfx';
-const canisterId = execFileSync(dfx, ['canister', 'id', 'backend'], { encoding: 'utf8' }).trim();
+const canisterId = process.env.NLOCKI_CANISTER_ID || execFileSync(dfx, ['canister', 'id', 'backend'], { encoding: 'utf8' }).trim();
 async function actor(identity) {
-  const agent = new HttpAgent({ identity, host: 'http://127.0.0.1:4943' });
+  const agent = new HttpAgent({ identity, host: process.env.NLOCKI_BACKEND_HOST || 'http://127.0.0.1:4943' });
   await agent.fetchRootKey();
   return Actor.createActor(idlFactory, { agent, canisterId });
 }

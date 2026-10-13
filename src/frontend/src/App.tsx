@@ -6,30 +6,41 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Layout } from "./components/Layout";
+import { RecoveryCodes } from "./components/RecoveryCodes";
+import { SecondFactorChallenge } from "./components/SecondFactorChallenge";
 import { Toaster } from "./components/ui/sonner";
 import { useActor } from "./hooks/use-actor";
 import { useInternetIdentity } from "./hooks/use-auth";
 import { useMyProfile } from "./hooks/use-backend";
-import ChartsPage from "./pages/ChartsPage";
-import ChatPage from "./pages/ChatPage";
-import DashboardPage from "./pages/DashboardPage";
-import FitnessPage from "./pages/FitnessPage";
+const ChartsPage = lazy(() => import("./pages/ChartsPage"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const FitnessPage = lazy(() => import("./pages/FitnessPage"));
 import LoginPage from "./pages/LoginPage";
-import MessagesPage from "./pages/MessagesPage";
-import NutritionPage from "./pages/NutritionPage";
-import PeoplePage from "./pages/PeoplePage";
-import PlannerPage from "./pages/PlannerPage";
-import ProfilePage from "./pages/ProfilePage";
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const NutritionPage = lazy(() => import("./pages/NutritionPage"));
+const PeoplePage = lazy(() => import("./pages/PeoplePage"));
+const PlannerPage = lazy(() => import("./pages/PlannerPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 
 // ---- Auth guard ----
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isInitializing, identity } = useInternetIdentity();
+  const {
+    isAuthenticated,
+    isInitializing,
+    userId,
+    secondFactorRequired,
+    loginError,
+    refreshSecurity,
+    clear,
+    recoveryCodes,
+  } = useInternetIdentity();
   const { connection } = useActor();
   const ownProfile = useMyProfile();
   const qc = useQueryClient();
-  const id = identity?.getPrincipal().toText();
+  const id = userId;
   useEffect(() => {
     qc.removeQueries({
       predicate: (q) => q.queryKey[0] === "account" && q.queryKey[1] !== id,
@@ -57,6 +68,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <LoginPage />;
   }
 
+  if (recoveryCodes.length) return <RecoveryCodes />;
+  if (secondFactorRequired) return <SecondFactorChallenge />;
+  if (loginError)
+    return (
+      <div className="p-8 space-y-4">
+        <h1 className="text-xl font-bold">Unable to verify your account</h1>
+        <p role="alert">{loginError.message}</p>
+        <button type="button" onClick={() => void refreshSecurity()}>
+          Retry
+        </button>
+        <button type="button" onClick={() => void clear()}>
+          Sign out
+        </button>
+      </div>
+    );
   if (connection.isError || ownProfile.isError) {
     return (
       <div className="p-8 space-y-4">
@@ -178,7 +204,18 @@ declare module "@tanstack/react-router" {
 export default function App() {
   return (
     <>
-      <RouterProvider router={router} />
+      <Suspense
+        fallback={
+          <div
+            className="min-h-[40vh] grid place-items-center text-muted-foreground"
+            role="alert"
+          >
+            Loading your space…
+          </div>
+        }
+      >
+        <RouterProvider router={router} />
+      </Suspense>
       <Toaster position="bottom-right" />
     </>
   );

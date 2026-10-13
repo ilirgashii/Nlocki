@@ -51,9 +51,7 @@ export function Sidebar({
 }: SidebarProps) {
   const location = useLocation();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => item.alwaysVisible || !isPeopleSectionActive,
-  );
+  const visibleItems = NAV_ITEMS;
 
   const content = (
     <aside className="flex flex-col h-full w-64 bg-sidebar border-r border-sidebar-border">

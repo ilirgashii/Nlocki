@@ -102,8 +102,10 @@ export default function PlannerPage() {
   const handleAdd = () => {
     const trimmed = newTask.trim();
     if (!trimmed) return;
-    addTask.mutate({ date: selectedDate, title: trimmed });
-    setNewTask("");
+    addTask.mutate(
+      { date: selectedDate, title: trimmed },
+      { onSuccess: () => setNewTask("") },
+    );
     inputRef.current?.focus();
   };
 
@@ -389,6 +391,7 @@ export default function PlannerPage() {
                 onChange={(e) => setNewTask(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                 className="pl-9 bg-background border-input focus-visible:ring-primary"
+                disabled={addTask.isPending}
                 data-ocid="planner.task.input"
               />
             </div>

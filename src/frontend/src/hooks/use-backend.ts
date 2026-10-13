@@ -370,8 +370,10 @@ export function usePersonalRecord(name: string) {
   );
 }
 const csv = (value: string | number) => {
-  const s = String(value);
-  return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  const text = String(value);
+  const s =
+    typeof value === "string" && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[,"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 export function useExportNutritionCSV() {
   return mutation(async (a, v: { startDate: string; endDate: string }) => {

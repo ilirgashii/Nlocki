@@ -4,10 +4,9 @@ import { type BackendActor, connectBackend } from "../lib/backend-client";
 import { useInternetIdentity } from "./use-auth";
 
 export function useActor() {
-  const { identity } = useInternetIdentity();
-  const userId = identity?.getPrincipal().toText() ?? "";
+  const { identity, userId } = useInternetIdentity();
   const connection = useQuery({
-    queryKey: ["backend-connection", userId],
+    queryKey: ["backend-connection", userId, identity?.getPrincipal().toText()],
     enabled: !!identity,
     queryFn: () =>
       connectBackend(
@@ -41,6 +40,8 @@ export function useBackendMutation<T, V>(
   const qc = useQueryClient();
   return useMutation<T, Error, V>({
     mutationFn: (value) => {
+      if (!navigator.onLine)
+        throw new Error("You are offline. Reconnect before saving changes.");
       if (!actor) throw new Error("Connect to the backend and sign in first.");
       return write(actor, value);
     },

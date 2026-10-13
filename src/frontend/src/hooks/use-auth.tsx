@@ -1,22 +1,35 @@
 import { AuthClient } from "@dfinity/auth-client";
 import type { Identity } from "@icp-sdk/core/agent";
+import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   type PropsWithChildren,
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
+import { type BackendActor, connectBackend } from "../lib/backend-client";
 
 type Auth = {
   identity?: Identity;
+  primaryIdentity?: Identity;
+  userId: string;
   isAuthenticated: boolean;
   isInitializing: boolean;
   isLoggingIn: boolean;
+  secondFactorRequired: boolean;
   loginError?: Error;
+  recoveryCodes: string[];
+  dismissRecoveryCodes: () => void;
   login: () => void;
-  clear: () => void;
+  clear: () => Promise<void>;
+  verifySecondFactor: (code: string) => Promise<void>;
+  confirmSecondFactor: (code: string) => Promise<string[]>;
+  primaryActor: () => Promise<BackendActor>;
+  refreshSecurity: () => Promise<void>;
 };
 const Context = createContext<Auth | null>(null);
 export function useInternetIdentity() {
@@ -24,13 +37,45 @@ export function useInternetIdentity() {
   if (!value) throw new Error("Authentication provider is missing");
   return value;
 }
+const connectAuth = (id: Identity) =>
+  connectBackend(
+    import.meta.env.VITE_BACKEND_CANISTER_ID,
+    import.meta.env.VITE_BACKEND_HOST || "https://icp-api.io",
+    id,
+  );
+
 export function InternetIdentityProvider({ children }: PropsWithChildren) {
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [client, setClient] = useState<AuthClient>();
+  const [primaryIdentity, setPrimary] = useState<Identity>();
   const [identity, setIdentity] = useState<Identity>();
+  const [secondFactorRequired, setRequired] = useState(false);
   const [isInitializing, setInitializing] = useState(true);
   const [isLoggingIn, setLoggingIn] = useState(false);
   const [loginError, setError] = useState<Error>();
   const qc = useQueryClient();
+  const authGeneration = useRef(0);
+  const loadSecurity = useCallback(async (id: Identity) => {
+    const generation = ++authGeneration.current;
+    setIdentity(undefined);
+    setRequired(false);
+    setRecoveryCodes([]);
+    setPrimary(id);
+    setInitializing(true);
+    try {
+      const actor = await connectAuth(id);
+      const status = await actor.getSecondFactorStatus();
+      if (generation !== authGeneration.current) return;
+      setRequired(status.enabled);
+      if (!status.enabled) setIdentity(id);
+      setError(undefined);
+    } catch (error) {
+      if (generation === authGeneration.current)
+        setError(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      if (generation === authGeneration.current) setInitializing(false);
+    }
+  }, []);
   useEffect(() => {
     let active = true;
     let idleClient: AuthClient | undefined;
@@ -40,29 +85,60 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
         onIdle: () => {
           qc.clear();
           setIdentity(undefined);
-          void idleClient?.logout().finally(() => window.location.reload());
+          setPrimary(undefined);
+          void idleClient?.logout().then(() => window.location.reload());
         },
       },
     })
       .then(async (auth) => {
         idleClient = auth;
-        const authenticated = await auth.isAuthenticated();
-        if (active) {
-          setClient(auth);
-          setIdentity(authenticated ? auth.getIdentity() : undefined);
-        }
+        if (!active) return;
+        setClient(auth);
+        if (await auth.isAuthenticated())
+          await loadSecurity(auth.getIdentity());
+        else setInitializing(false);
       })
       .catch((error) => {
-        if (active)
+        if (active) {
           setError(error instanceof Error ? error : new Error(String(error)));
-      })
-      .finally(() => {
-        if (active) setInitializing(false);
+          setInitializing(false);
+        }
       });
     return () => {
       active = false;
     };
-  }, [qc]);
+  }, [qc, loadSecurity]);
+  useEffect(() => {
+    if (!client || !primaryIdentity) return;
+    const timer = window.setInterval(async () => {
+      if (!(await client.isAuthenticated())) {
+        authGeneration.current += 1;
+        await client.logout();
+        qc.clear();
+        setIdentity(undefined);
+        setPrimary(undefined);
+        setRequired(false);
+        setRecoveryCodes([]);
+        setError(
+          new Error("Your sign-in session expired. Please sign in again."),
+        );
+      }
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [client, primaryIdentity, qc]);
+  // Session keys remain in memory. Reloads require a new TOTP/recovery verification.
+  useEffect(() => {
+    if (!identity || identity === primaryIdentity) return;
+    const timer = window.setTimeout(
+      () => {
+        qc.clear();
+        setIdentity(undefined);
+        setRequired(true);
+      },
+      29 * 60 * 1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [identity, primaryIdentity, qc]);
   function login() {
     if (!client) {
       setError(
@@ -78,9 +154,9 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
           import.meta.env.VITE_IDENTITY_PROVIDER ||
           "https://identity.internetcomputer.org",
         maxTimeToLive: 8n * 60n * 60n * 1_000_000_000n,
-        onSuccess: () => {
+        onSuccess: async () => {
           qc.clear();
-          setIdentity(client.getIdentity());
+          await loadSecurity(client.getIdentity());
           setLoggingIn(false);
         },
         onError: (error) => {
@@ -93,25 +169,91 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
         setLoggingIn(false);
       });
   }
-  async function clear() {
-    try {
-      await client?.logout();
+  const primaryActor = useCallback(async () => {
+    if (!primaryIdentity) throw new Error("Sign in first.");
+    return connectAuth(primaryIdentity);
+  }, [primaryIdentity]);
+  async function sessionKey() {
+    const key = Ed25519KeyIdentity.generate();
+    const actor = await connectAuth(key);
+    await actor.prepareSecondFactorSession();
+    return key;
+  }
+  async function verifySecondFactor(code: string) {
+    const generation = authGeneration.current;
+    const key = await sessionKey();
+    const actor = await primaryActor();
+    const result = await actor.verifySecondFactor(
+      code.trim().toUpperCase(),
+      key.getPrincipal(),
+    );
+    if ("error" in result) throw new Error(result.error);
+    if (generation !== authGeneration.current)
+      throw new Error("Sign-in changed. Please try again.");
+    qc.clear();
+    setIdentity(key);
+    setRequired(false);
+    setError(undefined);
+  }
+  async function confirmSecondFactor(code: string) {
+    const generation = authGeneration.current;
+    const key = await sessionKey();
+    const actor = await primaryActor();
+    const result = await actor.confirmSecondFactorSetup(
+      code.trim(),
+      key.getPrincipal(),
+    );
+    if ("error" in result) throw new Error(result.error);
+    if (generation !== authGeneration.current)
+      throw new Error("Sign-in changed. Please try again.");
+    qc.clear();
+    setIdentity(key);
+    setRequired(false);
+    setRecoveryCodes(result.ok);
+    return result.ok;
+  }
+  async function refreshSecurity() {
+    if (primaryIdentity) {
       qc.clear();
-      setIdentity(undefined);
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error(String(error)));
+      await loadSecurity(primaryIdentity);
     }
+  }
+  async function clear() {
+    authGeneration.current += 1;
+    if (primaryIdentity) {
+      try {
+        await (await connectAuth(primaryIdentity)).revokeSecondFactorSessions();
+      } catch {
+        /* Local logout still clears credentials when offline. */
+      }
+    }
+    await client?.logout();
+    setRecoveryCodes([]);
+    qc.clear();
+    setIdentity(undefined);
+    setPrimary(undefined);
+    setRequired(false);
   }
   return (
     <Context.Provider
       value={{
         identity,
-        isAuthenticated: !!identity && !identity.getPrincipal().isAnonymous(),
+        primaryIdentity,
+        recoveryCodes,
+        dismissRecoveryCodes: () => setRecoveryCodes([]),
+        userId: primaryIdentity?.getPrincipal().toText() ?? "",
+        isAuthenticated:
+          !!primaryIdentity && !primaryIdentity.getPrincipal().isAnonymous(),
         isInitializing,
         isLoggingIn,
+        secondFactorRequired,
         loginError,
         login,
         clear,
+        verifySecondFactor,
+        confirmSecondFactor,
+        primaryActor,
+        refreshSecurity,
       }}
     >
       {children}

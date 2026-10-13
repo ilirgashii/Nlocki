@@ -9,24 +9,25 @@ import RecordsLib "../lib/records";
 
 mixin (
   workouts : Map.Map<Principal, List.List<WorkoutTypes.Workout>>,
+  authorize : Principal -> Principal,
 ) {
   // Return the current and longest workout streak for the calling user
-  public shared query ({ caller }) func getWorkoutStreak() : async StreakTypes.WorkoutStreak {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+  public shared query ({ caller = signer }) func getWorkoutStreak() : async StreakTypes.WorkoutStreak {
+    let caller = authorize(signer);
     StreakLib.computeStreak(workouts, caller);
   };
 
   // Return all personal records for the calling user
-  public shared query ({ caller }) func getPersonalRecords() : async [StreakTypes.PersonalRecord] {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+  public shared query ({ caller = signer }) func getPersonalRecords() : async [StreakTypes.PersonalRecord] {
+    let caller = authorize(signer);
     RecordsLib.computeAllRecords(workouts, caller);
   };
 
   // Return the personal record for a specific exercise, or null if none
-  public shared query ({ caller }) func getPersonalRecord(
+  public shared query ({ caller = signer }) func getPersonalRecord(
     exerciseName : Text,
   ) : async ?StreakTypes.PersonalRecord {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     RecordsLib.computeRecord(workouts, caller, exerciseName);
   };
 };

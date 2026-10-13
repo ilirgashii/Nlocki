@@ -15,8 +15,9 @@ mixin (
   workouts : Map.Map<Principal, List.List<WorkoutTypes.Workout>>,
   meals : Map.Map<Principal, List.List<MealTypes.Meal>>,
   waterStore : Map.Map<Principal, Map.Map<Text, Nat>>,
+  authorize : Principal -> Principal,
 ) {
-  public shared query ({ caller }) func getDailySummary(date : Text) : async {
+  public shared query ({ caller = signer }) func getDailySummary(date : Text) : async {
     taskCompletionPct : Float;
     totalCalories : Nat;
     totalProtein : Nat;
@@ -25,7 +26,7 @@ mixin (
     waterMl : Nat;
     workoutCount : Nat;
   } {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let userTasks = switch (tasks.get(caller)) {
       case (?list) list.filter(func(t : TaskTypes.Task) : Bool { t.date == date });
       case null List.empty<TaskTypes.Task>();
@@ -62,12 +63,12 @@ mixin (
   };
 
   /// Returns aggregated stats for a week containing the given date range (7-day window)
-  public shared query ({ caller }) func getWeeklySummary(startDate : Text, endDate : Text) : async {
+  public shared query ({ caller = signer }) func getWeeklySummary(startDate : Text, endDate : Text) : async {
     workoutsThisWeek : Nat;
     avgCaloriesPerDay : Float;
     avgWaterPerDay : Float;
   } {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let workoutsThisWeek = switch (workouts.get(caller)) {
       case (?list) list.filter(func(w : WorkoutTypes.Workout) : Bool {
         w.date >= startDate and w.date <= endDate

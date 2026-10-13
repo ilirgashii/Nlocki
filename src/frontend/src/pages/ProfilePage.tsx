@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { SecuritySettings } from "../components/SecuritySettings";
 import {
   useFollowUser,
   useGoals,
@@ -480,13 +481,13 @@ export default function ProfilePage() {
   const isOwn = userId === myId;
   const { data: profile, isLoading } = useProfile(userId);
   const { data: posts = [] } = useUserPosts(userId);
-  const { data: isFollowing } = useIsFollowing(userId);
+
   const { data: canMessage } = useCanMessage(userId);
   const [editOpen, setEditOpen] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const navigate = useNavigate();
 
-  const canSeeContent = isOwn || profile?.isPublic || isFollowing;
+  const canSeeContent = isOwn || profile?.isPublic;
 
   if (isLoading) {
     return (
@@ -701,7 +702,7 @@ export default function ProfilePage() {
               This account is private
             </p>
             <p className="text-sm text-muted-foreground">
-              Follow to see their posts and content.
+              Only the owner can see private posts.
             </p>
           </div>
           {!isOwn && (
@@ -732,6 +733,8 @@ export default function ProfilePage() {
           )}
         </div>
       )}
+
+      {isOwn && <SecuritySettings />}
 
       {editOpen && <EditProfileModal onClose={() => setEditOpen(false)} />}
       {goalsOpen && <GoalSettingsModal onClose={() => setGoalsOpen(false)} />}

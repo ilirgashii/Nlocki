@@ -451,9 +451,10 @@ export default function DashboardPage() {
   const hasGoals = goals !== undefined;
 
   const displayName =
-    myProfile?.username && myProfile.username !== "you"
+    myProfile?.displayName ||
+    (myProfile?.username && myProfile.username !== "you"
       ? myProfile.username
-      : "there";
+      : "there");
 
   const formattedDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -474,7 +475,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Hero header ───────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-card border border-border shadow-elevated px-7 py-6">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-card to-card border border-primary/15 shadow-elevated px-5 py-6 md:px-7">
         <div
           className="absolute -top-12 -right-12 w-56 h-56 rounded-full pointer-events-none"
           style={{
@@ -502,7 +503,7 @@ export default function DashboardPage() {
               <Sparkles className="w-3.5 h-3.5 text-primary" />
               {summary && summary.tasksTotal > 0
                 ? `${summary.tasksCompleted} of ${summary.tasksTotal} tasks done today`
-                : "No tasks logged yet — start your day strong!"}
+                : "Small steps count. Choose one thing to do today."}
             </p>
           </div>
           <div

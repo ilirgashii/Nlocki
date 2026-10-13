@@ -31,6 +31,11 @@ module {
     { p with email = null; phone = null };
   };
 
+  public func visibleProfile(p : Types.UserProfileInternal) : Types.UserProfile {
+    let view = withoutContacts(toPublicProfile(p));
+    if (p.isPublic) view else ({ view with bio = ""; displayName = null });
+  };
+
   public func toMinimalProfile(self : Types.UserProfileInternal) : Types.MinimalProfile {
     {
       userId = self.userId;
@@ -161,7 +166,7 @@ module {
     requesterId : Text,
     targetId : Text,
     profiles : Map.Map<Text, Types.UserProfileInternal>,
-    follows : Map.Map<Text, Set.Set<Text>>,
+    _follows : Map.Map<Text, Set.Set<Text>>,
   ) : ?Types.UserProfile {
     switch (profiles.get(targetId)) {
       case null null;
@@ -171,28 +176,7 @@ module {
         } else if (p.isPublic) {
           ?withoutContacts(toPublicProfile(p));
         } else {
-          // Check if requester follows the target
-          let isFollower = switch (follows.get(requesterId)) {
-            case (?set) set.contains(targetId);
-            case null false;
-          };
-          if (isFollower) {
-            ?withoutContacts(toPublicProfile(p));
-          } else {
-            // Return minimal profile disguised as full profile — privacy-first
-            ?{
-              userId = p.userId;
-              username = p.username;
-              displayName = null;
-              email = null;
-              phone = null;
-              bio = "";
-              avatarUrl = p.avatarUrl;
-              isPublic = false;
-              followersCount = 0;
-              followingCount = 0;
-            };
-          };
+          ?visibleProfile(p);
         };
       };
     };
@@ -246,6 +230,8 @@ module {
     profiles : Map.Map<Text, Types.UserProfileInternal>,
   ) : () {
     if (callerId == targetId) return;
+    switch (profiles.get(callerId)) { case null Runtime.trap("Create your profile first"); case (?_) {} };
+    switch (profiles.get(targetId)) { case null Runtime.trap("User not found"); case (?_) {} };
     // Update follows set
     let followSet = switch (follows.get(callerId)) {
       case (?s) s;
@@ -321,7 +307,7 @@ module {
         let result = List.empty<Types.UserProfile>();
         set.forEach(func(fid) {
           switch (profiles.get(fid)) {
-            case (?p) result.add(withoutContacts(toPublicProfile(p)));
+            case (?p) result.add(visibleProfile(p));
             case null {};
           };
         });
@@ -341,7 +327,7 @@ module {
         let result = List.empty<Types.UserProfile>();
         set.forEach(func(fid) {
           switch (profiles.get(fid)) {
-            case (?p) result.add(withoutContacts(toPublicProfile(p)));
+            case (?p) result.add(visibleProfile(p));
             case null {};
           };
         });

@@ -1,0 +1,9 @@
+# Security scope
+
+Internet Identity authenticates the primary principal. Optional SHA-256 TOTP is enforced by the backend for protected methods; the frontend alone cannot bypass it. Successful verification authorizes a fresh, self-signed session key for 30 minutes. Codes are not reusable; recovery codes are hashed, one-use, and displayed once. Five invalid attempts lock verification for five minutes. Logout revokes account sessions. No password or authentication secret belongs in Git or logs.
+
+Protected application data is scoped to its owner. Profile contact details are owner-only. Private profile biography/display name and private posts remain unavailable to other accounts. Input bounds cover major mutation fields, date validation and numeric ranges. CSV exports escape quotes and spreadsheet formula prefixes. Uploads accept bounded raster photos converted to JPEG. Dependency integrity, TLS and Motoko tool verification remain enabled.
+
+These checks reduce identified risks; they do not establish that every possible vulnerability has been eliminated. Before public deployment, obtain an independent security review, configure HTTPS and the final Internet Identity origin, review controller permissions, test backups/restoration, add per-account storage quotas and paginated media APIs, and implement moderation, data deletion and monitoring. Revoked session-key tombstones persist to prevent key reuse; production capacity planning must account for their growth. Never expose local DFX or Vite development services publicly.
+
+Run `pnpm test:totp`, `pnpm test:security`, `pnpm test:persistence`, `pnpm test:browser`, `mops check` and `pnpm audit` against a local development deployment. Report suspected vulnerabilities privately to the repository owner rather than posting authentication secrets or personal data in public issues.

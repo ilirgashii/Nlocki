@@ -1,0 +1,18 @@
+FROM node:24-bookworm-slim
+ARG DFX_VERSION=0.29.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tini libunwind8 && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=secret,id=cloud-ca if [ -f /run/secrets/cloud-ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cloud-ca; fi; npm --fetch-retries=0 install -g pnpm@10.34.0 ic-mops@3.5.0
+RUN --mount=type=secret,id=cloud-ca if [ -f /run/secrets/cloud-ca ]; then export CURL_CA_BUNDLE=/run/secrets/cloud-ca; fi; mkdir -p /opt/dfx && curl -fsSL "https://github.com/dfinity/sdk/releases/download/${DFX_VERSION}/dfx-${DFX_VERSION}-x86_64-linux.tar.gz" -o /tmp/dfx.tar.gz && tar -xzf /tmp/dfx.tar.gz -C /opt/dfx && rm /tmp/dfx.tar.gz
+ENV PATH="/opt/dfx:${PATH}" TERM=xterm-256color NODE_USE_ENV_PROXY=1
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY src/frontend/package.json src/frontend/package.json
+RUN --mount=type=secret,id=cloud-ca if [ -f /run/secrets/cloud-ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cloud-ca; fi; pnpm install --frozen-lockfile
+COPY mops.toml mops.lock ./
+RUN --mount=type=secret,id=cloud-ca if [ -f /run/secrets/cloud-ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cloud-ca; fi; XDG_CACHE_HOME=/opt/nlocki-cache XDG_CONFIG_HOME=/opt/nlocki-config mops install --locked
+COPY . .
+RUN mkdir -p /data /opt/nlocki-config && chown -R node:node /app /data /opt/nlocki-cache /opt/nlocki-config
+USER node
+EXPOSE 5173 4943
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
+CMD ["bash", "scripts/docker-start.sh"]

@@ -168,8 +168,14 @@ export interface _SERVICE {
   'addReaction' : ActorMethod<[string, string], undefined>,
   'addTask' : ActorMethod<[string, string], Task>,
   'addWorkout' : ActorMethod<[WorkoutInput], WorkoutView>,
+  'beginSecondFactorSetup' : ActorMethod<[], { 'secret' : string }>,
   'canMessageUser' : ActorMethod<[string], boolean>,
   'clearScheduleDay' : ActorMethod<[bigint], undefined>,
+  'confirmSecondFactorSetup' : ActorMethod<
+    [string, Principal],
+    { 'ok' : Array<string> } |
+      { 'error' : string }
+  >,
   'createComment' : ActorMethod<[bigint, string], Comment>,
   'createOrGetProfile' : ActorMethod<[], UserProfile>,
   'createPost' : ActorMethod<[string, [] | [string]], Post>,
@@ -182,6 +188,11 @@ export interface _SERVICE {
   'deleteStory' : ActorMethod<[bigint], undefined>,
   'deleteTask' : ActorMethod<[bigint], boolean>,
   'deleteWorkout' : ActorMethod<[bigint], boolean>,
+  'disableSecondFactor' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'error' : string }
+  >,
   'exportFitnessCSV' : ActorMethod<[string, string], string>,
   'exportNutritionCSV' : ActorMethod<[string, string], string>,
   'followUser' : ActorMethod<[string], undefined>,
@@ -213,6 +224,7 @@ export interface _SERVICE {
   'getPersonalRecord' : ActorMethod<[string], [] | [PersonalRecord]>,
   'getPersonalRecords' : ActorMethod<[], Array<PersonalRecord>>,
   'getProfile' : ActorMethod<[string], [] | [UserProfile]>,
+  'getSecondFactorStatus' : ActorMethod<[], { 'enabled' : boolean }>,
   'getStories' : ActorMethod<[], Array<Story>>,
   'getTasksForDate' : ActorMethod<[string], Array<Task>>,
   'getUserByUsername' : ActorMethod<[string], [] | [UserProfile]>,
@@ -237,7 +249,9 @@ export interface _SERVICE {
   'listFoodPresets' : ActorMethod<[], Array<FoodPreset>>,
   'logWater' : ActorMethod<[string, bigint], WaterLog>,
   'markMessageRead' : ActorMethod<[string], undefined>,
+  'prepareSecondFactorSession' : ActorMethod<[], undefined>,
   'removeReaction' : ActorMethod<[string, string], undefined>,
+  'revokeSecondFactorSessions' : ActorMethod<[], undefined>,
   'saveGoals' : ActorMethod<[bigint, bigint], undefined>,
   'saveWeeklySchedule' : ActorMethod<[Array<EntryView>], undefined>,
   'searchFoodPresets' : ActorMethod<[string], Array<FoodPreset>>,
@@ -266,6 +280,11 @@ export interface _SERVICE {
   'updateProfilePhoto' : ActorMethod<[string], undefined>,
   'updateScheduleEntry' : ActorMethod<[EntryView], boolean>,
   'updateWorkout' : ActorMethod<[bigint, WorkoutInput], [] | [WorkoutView]>,
+  'verifySecondFactor' : ActorMethod<
+    [string, Principal],
+    { 'ok' : null } |
+      { 'error' : string }
+  >,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

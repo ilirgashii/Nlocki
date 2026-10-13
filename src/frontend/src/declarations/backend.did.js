@@ -167,8 +167,18 @@ export const idlFactory = ({ IDL }) => {
     'addReaction' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'addTask' : IDL.Func([IDL.Text, IDL.Text], [Task], []),
     'addWorkout' : IDL.Func([WorkoutInput], [WorkoutView], []),
+    'beginSecondFactorSetup' : IDL.Func(
+        [],
+        [IDL.Record({ 'secret' : IDL.Text })],
+        [],
+      ),
     'canMessageUser' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'clearScheduleDay' : IDL.Func([IDL.Nat], [], []),
+    'confirmSecondFactorSetup' : IDL.Func(
+        [IDL.Text, IDL.Principal],
+        [IDL.Variant({ 'ok' : IDL.Vec(IDL.Text), 'error' : IDL.Text })],
+        [],
+      ),
     'createComment' : IDL.Func([IDL.Nat, IDL.Text], [Comment], []),
     'createOrGetProfile' : IDL.Func([], [UserProfile], []),
     'createPost' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [Post], []),
@@ -181,6 +191,11 @@ export const idlFactory = ({ IDL }) => {
     'deleteStory' : IDL.Func([IDL.Nat], [], []),
     'deleteTask' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'deleteWorkout' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+    'disableSecondFactor' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'error' : IDL.Text })],
+        [],
+      ),
     'exportFitnessCSV' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], ['query']),
     'exportNutritionCSV' : IDL.Func(
         [IDL.Text, IDL.Text],
@@ -231,6 +246,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getPersonalRecords' : IDL.Func([], [IDL.Vec(PersonalRecord)], ['query']),
     'getProfile' : IDL.Func([IDL.Text], [IDL.Opt(UserProfile)], ['query']),
+    'getSecondFactorStatus' : IDL.Func(
+        [],
+        [IDL.Record({ 'enabled' : IDL.Bool })],
+        ['query'],
+      ),
     'getStories' : IDL.Func([], [IDL.Vec(Story)], ['query']),
     'getTasksForDate' : IDL.Func([IDL.Text], [IDL.Vec(Task)], ['query']),
     'getUserByUsername' : IDL.Func(
@@ -270,7 +290,9 @@ export const idlFactory = ({ IDL }) => {
     'listFoodPresets' : IDL.Func([], [IDL.Vec(FoodPreset)], ['query']),
     'logWater' : IDL.Func([IDL.Text, IDL.Nat], [WaterLog], []),
     'markMessageRead' : IDL.Func([IDL.Text], [], []),
+    'prepareSecondFactorSession' : IDL.Func([], [], []),
     'removeReaction' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'revokeSecondFactorSessions' : IDL.Func([], [], []),
     'saveGoals' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
     'saveWeeklySchedule' : IDL.Func([IDL.Vec(EntryView)], [], []),
     'searchFoodPresets' : IDL.Func(
@@ -307,6 +329,11 @@ export const idlFactory = ({ IDL }) => {
     'updateWorkout' : IDL.Func(
         [IDL.Nat, WorkoutInput],
         [IDL.Opt(WorkoutView)],
+        [],
+      ),
+    'verifySecondFactor' : IDL.Func(
+        [IDL.Text, IDL.Principal],
+        [IDL.Variant({ 'ok' : IDL.Null, 'error' : IDL.Text })],
         [],
       ),
   });

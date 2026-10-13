@@ -21,6 +21,7 @@ mixin (
   follows : Map.Map<Text, Set.Set<Text>>,
   // Profiles for resolving usernames in conversation summaries
   profiles : Map.Map<Text, SocialTypes.UserProfileInternal>,
+  authorize : Principal -> Principal,
 ) {
   func visibleMessages(caller : Principal) : List.List<Types.Message> {
     switch (deletedMessages.get(caller)) {
@@ -31,11 +32,11 @@ mixin (
 
   // Send a direct message — only allowed if follow relationship or accepted request exists
   // Returns the sent message or traps with a reason
-  public shared ({ caller }) func sendMessage(
+  public shared ({ caller = signer }) func sendMessage(
     recipientId : Text,
     text : Text,
   ) : async Types.Message {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     if (callerId == recipientId) Runtime.trap("Cannot message yourself");
     let canMsg = MessagingLib.hasFollowRelationship(follows, callerId, recipientId) or
@@ -59,11 +60,11 @@ mixin (
 
   // Send a message request to a stranger
   // Returns the request or traps with a reason
-  public shared ({ caller }) func sendMessageRequest(
+  public shared ({ caller = signer }) func sendMessageRequest(
     recipientId : Text,
     previewText : Text,
   ) : async Types.MessageRequest {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     if (callerId == recipientId) Runtime.trap("Cannot send a request to yourself");
     if (previewText.size() == 0 or previewText.size() > 200) Runtime.trap("Request must have 1–200 characters");
@@ -93,10 +94,10 @@ mixin (
   };
 
   // Accept a pending message request
-  public shared ({ caller }) func acceptMessageRequest(
+  public shared ({ caller = signer }) func acceptMessageRequest(
     requestId : Text,
   ) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     var found = false;
     messageRequests.mapInPlace(func(r : Types.MessageRequest) : Types.MessageRequest {
@@ -109,10 +110,10 @@ mixin (
   };
 
   // Decline a message request — blocks sender for 7 days
-  public shared ({ caller }) func declineMessageRequest(
+  public shared ({ caller = signer }) func declineMessageRequest(
     requestId : Text,
   ) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     var senderId = "";
     var found = false;
@@ -134,8 +135,8 @@ mixin (
   };
 
   // Get all active conversation summaries for the caller
-  public shared query ({ caller }) func getConversations() : async [Types.ConversationSummary] {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+  public shared query ({ caller = signer }) func getConversations() : async [Types.ConversationSummary] {
+    let caller = authorize(signer);
     let callerId = caller.toText();
     let partners = Set.empty<Text>();
     visibleMessages(caller).forEach(func(m : Types.Message) {
@@ -152,10 +153,10 @@ mixin (
   };
 
   // Get full message history between caller and another user, ordered by time ascending
-  public shared query ({ caller }) func getMessages(
+  public shared query ({ caller = signer }) func getMessages(
     otherUserId : Text,
   ) : async [Types.Message] {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     visibleMessages(caller).filter(func(m : Types.Message) : Bool {
       (m.senderId == callerId and m.recipientId == otherUserId) or
@@ -168,8 +169,8 @@ mixin (
   };
 
   // Get all pending incoming message requests for the caller
-  public shared query ({ caller }) func getMessageRequests() : async [Types.MessageRequest] {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+  public shared query ({ caller = signer }) func getMessageRequests() : async [Types.MessageRequest] {
+    let caller = authorize(signer);
     let callerId = caller.toText();
     messageRequests.filter(func(r : Types.MessageRequest) : Bool {
       r.recipientId == callerId and r.status == #pending
@@ -177,10 +178,10 @@ mixin (
   };
 
   // Mark a specific message as read by its id
-  public shared ({ caller }) func markMessageRead(
+  public shared ({ caller = signer }) func markMessageRead(
     messageId : Text,
   ) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     messages.mapInPlace(func(m : Types.Message) : Types.Message {
       if (m.id == messageId and m.recipientId == callerId and not m.isRead) {
@@ -190,10 +191,10 @@ mixin (
   };
 
   // Remove a conversation from caller's inbox view — deletes messages both ways
-  public shared ({ caller }) func deleteConversation(
+  public shared ({ caller = signer }) func deleteConversation(
     otherUserId : Text,
   ) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     let hidden = switch (deletedMessages.get(caller)) {
       case (?entries) entries;
@@ -205,22 +206,23 @@ mixin (
   };
 
   // Check if caller can message a target user (follow/follower or accepted request)
-  public shared query ({ caller }) func canMessageUser(
+  public shared query ({ caller = signer }) func canMessageUser(
     targetUserId : Text,
   ) : async Bool {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     MessagingLib.hasFollowRelationship(follows, callerId, targetUserId) or
     MessagingLib.hasAcceptedRequest(messageRequests, callerId, targetUserId)
   };
 
   // Add an emoji reaction to a message (caller must be sender or recipient)
-  public shared ({ caller }) func addReaction(
+  public shared ({ caller = signer }) func addReaction(
     messageId : Text,
     emoji : Text,
   ) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
+    if (emoji.size() == 0 or emoji.size() > 16) Runtime.trap("Invalid reaction");
     let now = Time.now();
     messages.mapInPlace(func(m : Types.Message) : Types.Message {
       if (m.id == messageId and (m.senderId == callerId or m.recipientId == callerId)) {
@@ -247,11 +249,11 @@ mixin (
   };
 
   // Remove an emoji reaction from a message (only the caller's own reaction)
-  public shared ({ caller }) func removeReaction(
+  public shared ({ caller = signer }) func removeReaction(
     messageId : Text,
     emoji : Text,
   ) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let caller = authorize(signer);
     let callerId = caller.toText();
     messages.mapInPlace(func(m : Types.Message) : Types.Message {
       if (m.id == messageId and (m.senderId == callerId or m.recipientId == callerId)) {
