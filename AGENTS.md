@@ -22,3 +22,7 @@ Use the existing checkout. Cloud tasks are isolated; do not create a worktree un
 - Browser integration: `pnpm test:browser`; Chromium required, optional PLAYWRIGHT_CHROMIUM_PATH and NLOCKI_BASE_URL.
 
 Keep authentication real, isolate query caches per authenticated principal, and keep user data on the backend. Never introduce mock users or browser-only social/message storage. Preserve stable data shapes and test upgrades before changing them. Never commit identity keys, .dfx state, .env.local, node_modules, or .build outputs. Public deployment and actual Git push require the user's instruction.
+
+## Default self-hosted workflow (supersedes legacy startup above)
+
+`pnpm dev` now starts Docker/PostgreSQL after preparing private local secret files. Docker Engine/Compose and Node 24 are required. Default storage is PostgreSQL plus private media, not the legacy Motoko/SQLite stack. Check `pnpm test:postgres`, `pnpm test:email:browser` and `pnpm test:nutrition:browser` against the running gateway; set NLOCKI_BASE_URL to its loopback URL. Preserve all old volumes, `.dfx` and encryption keys. Legacy DFX/Mops commands above remain for `pnpm dev:ic` and legacy tests only. Do not expose local-testing mode to a public host or disable verified TLS. Production operator details must be real; never invent legal contact details or promise GDPR compliance. Database initialization is not an automatic schema migration.

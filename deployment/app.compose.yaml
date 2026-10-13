@@ -1,0 +1,77 @@
+services:
+  api:
+    build:
+      context: ..
+      target: build
+    environment:
+      NODE_ENV: production
+      AUTH_LOCAL_TESTING: "false"
+      AUTH_ALLOWED_ORIGINS: https://app.gixha.com
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+      PASSKEY_RP_ID: app.gixha.com
+      AUTH_BACKEND_CANISTER_ID: http
+      AUTH_PORT: 3010
+      AUTH_BIND: 0.0.0.0
+      AUTH_DATA_DIR: /state
+      MEDIA_ROOT: /media
+      PGHOST: db.internal
+      PGPORT: 5432
+      PGDATABASE: nlocki
+      PGUSER: nlocki_app
+      PGPASSWORD_FILE: /run/secrets/db_app_password
+      PGSSL_CA_FILE: /run/secrets/db_ca
+      SMTP_HOST: ${SMTP_HOST:?Set email provider}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_FROM: ${SMTP_FROM:?Set verified sender}
+      SMTP_USER: ${SMTP_USER:?Set SMTP username}
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      OPERATOR_ADDRESS: ${OPERATOR_ADDRESS:?Set real serviceable postal address}
+      OPERATOR_NAME: ${OPERATOR_NAME:?Set real controller/operator}
+      OPERATOR_COUNTRY: ${OPERATOR_COUNTRY:?Set operator country}
+      PRIVACY_CONTACT: ${PRIVACY_CONTACT:?Set working privacy contact email}
+      PUBLIC_BETA_READY: ${PUBLIC_BETA_READY:-false}
+      TRUST_CLOUDFLARE: "true"
+    extra_hosts: ["db.internal:${DB_VM_IP:?Set private DB VM address}"]
+    volumes:
+      - ${SSD_STATE_DIR:?Set SSD auth-state directory}:/state
+      - ${HDD_PHOTOS_DIR:?Set HDD photos directory}:/media
+    secrets: [db_app_password, db_ca, smtp_password]
+    networks: [backend]
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
+    mem_limit: 1g
+    pids_limit: 128
+    restart: unless-stopped
+  gateway:
+    build:
+      context: ..
+      target: gateway
+    networks: [edge,backend]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    # No published ports. Only the tunnel can reach this origin.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token-file /run/secrets/cloudflare_tunnel_token
+    secrets: [cloudflare_tunnel_token]
+    networks: [edge]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+networks:
+  backend: {}
+  edge: {}
+secrets:
+  db_app_password:
+    file: ${SECRETS_DIR:?Set secrets directory}/db_app_password
+  db_ca:
+    file: ${DB_CA_FILE:?Set public CA certificate for DB TLS}
+  smtp_password:
+    file: ${SECRETS_DIR:?Set secrets directory}/smtp_password
+  cloudflare_tunnel_token:
+    file: ${SECRETS_DIR:?Set secrets directory}/cloudflare_tunnel_token

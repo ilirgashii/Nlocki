@@ -1,0 +1,21 @@
+:8080 {
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    X-Frame-Options DENY
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://world.openfoodfacts.org; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+  }
+  @api path /api/*
+  handle @api {
+    header Cache-Control "private, no-store"
+    reverse_proxy api:3010 {
+      header_up Host {hostport}
+    }
+  }
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}

@@ -12,6 +12,7 @@ import type {
   WeeklyScheduleEntry,
   Workout,
 } from "../types";
+import { connectHttp, httpBackend } from "./http-backend";
 
 export type BackendActor = _SERVICE;
 export async function connectBackend(
@@ -19,6 +20,7 @@ export async function connectBackend(
   host: string,
   identity: Identity,
 ): Promise<BackendActor> {
+  if (httpBackend) return connectHttp(identity);
   if (!canisterId || canisterId === "undefined")
     throw new Error(
       "Backend is not configured. Run scripts/dev.sh or set VITE_BACKEND_CANISTER_ID.",
@@ -186,7 +188,7 @@ export const message = (m: Backend.Message): Message => ({
   timestamp: ms(m.timestamp),
   reactions: m.reactions.map((r) => ({
     emoji: r.emoji,
-    userId: r.userId.toText(),
+    userId: typeof r.userId === "string" ? r.userId : r.userId.toText(),
     timestamp: ms(r.timestamp),
   })),
 });

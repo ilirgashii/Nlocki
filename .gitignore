@@ -13,3 +13,8 @@ canister_ids.json
 
 # Persistent email credentials and signing keys (never commit)
 .local-auth/
+
+.secrets/
+.local-media/
+.local-state/
+*.key

@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:17-bookworm
+    entrypoint: ["bash", "-c", 'export NLOCKI_APP_PASSWORD="$$(cat /run/secrets/db_app_password)"; exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/certs/server.crt -c ssl_key_file=/certs/server.key -c ssl_ca_file=/certs/ca.crt -c hba_file=/config/pg_hba.conf']
+    environment:
+      POSTGRES_DB: nlocki
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports: ["${DB_BIND_IP:?Set a PRIVATE database VM address}:5432:5432"]
+    volumes:
+      - ${SSD_DB_DIR:?Set SSD database directory}:/var/lib/postgresql/data
+      - ${DB_TLS_DIR:?Set private database TLS certificate directory}:/certs:ro
+      - ${DB_HBA_FILE:?Set rendered pg_hba.conf}:/config/pg_hba.conf:ro
+      - ../scripts/init-postgres.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+      - ../server/sql/schema.sql:/opt/nlocki/schema.sql:ro
+    secrets: [db_admin_password, db_app_password]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d nlocki"]
+      interval: 10s
+      retries: 5
+secrets:
+  db_admin_password:
+    file: ${SECRETS_DIR:?Set private secrets directory}/db_admin_password
+  db_app_password:
+    file: ${SECRETS_DIR:?Set private secrets directory}/db_app_password

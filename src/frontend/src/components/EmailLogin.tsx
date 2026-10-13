@@ -5,8 +5,12 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 export function EmailLogin() {
-  const { emailLogin, isLoggingIn, isInitializing } = useInternetIdentity();
+  const { loginEmailPasskey, emailLogin, isLoggingIn, isInitializing } =
+    useInternetIdentity();
   const [config, setConfig] = useState<EmailConfig>();
+  const [terms, setTerms] = useState(false);
+  const [health, setHealth] = useState(false);
+  const [adult, setAdult] = useState(false);
   const [signup, setSignup] = useState(false);
   const [verification, setVerification] = useState(false);
   const [email, setEmail] = useState("");
@@ -29,6 +33,11 @@ export function EmailLogin() {
         email,
         password,
         code,
+        {
+          acceptedTerms: terms ? config?.privacyVersion : undefined,
+          healthConsent: health,
+          adult,
+        },
       );
       if (!done) setVerification(true);
     } catch (e) {
@@ -111,6 +120,60 @@ export function EmailLogin() {
           )}
         </>
       )}
+      {signup && !config?.localTesting && !verification && (
+        <div className="space-y-3 text-sm">
+          <label className="flex gap-2">
+            <input
+              type="checkbox"
+              required
+              checked={adult}
+              onChange={(e) => setAdult(e.target.checked)}
+            />
+            I am 18 or older.
+          </label>
+          <label className="flex gap-2">
+            <input
+              type="checkbox"
+              required
+              checked={terms}
+              onChange={(e) => setTerms(e.target.checked)}
+            />
+            I accept the beta terms and have read the privacy notice.
+          </label>
+          <div className="flex gap-3">
+            <a
+              href="/legal/terms"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              Beta terms
+            </a>
+            <a
+              href="/legal/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              Privacy notice
+            </a>
+          </div>
+          <label className="flex gap-2">
+            <input
+              type="checkbox"
+              checked={health}
+              onChange={(e) => setHealth(e.target.checked)}
+            />
+            Optional: I explicitly consent to processing fitness, body weight
+            and nutrition entries, which may reveal health information. I can
+            withdraw this separately.
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Beta: use test data and avoid sensitive details. Declining optional
+            consent still allows tasks and social features.
+          </p>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -129,6 +192,19 @@ export function EmailLogin() {
               ? "Create account"
               : "Sign in"}
       </Button>
+      {!signup && !verification && config && !config.localTesting && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={isLoggingIn || !email}
+          onClick={() =>
+            void loginEmailPasskey(email).catch((e) => setError(e.message))
+          }
+        >
+          Sign in with a passkey
+        </Button>
+      )}
       {verification ? (
         <div className="flex justify-between">
           <Button

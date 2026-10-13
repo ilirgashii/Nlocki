@@ -18,6 +18,7 @@ const ChartsPage = lazy(() => import("./pages/ChartsPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FitnessPage = lazy(() => import("./pages/FitnessPage"));
+import LegalPage from "./pages/LegalPage";
 import LoginPage from "./pages/LoginPage";
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const NutritionPage = lazy(() => import("./pages/NutritionPage"));
@@ -184,7 +185,13 @@ const chatRoute = createRoute({
   component: ChatPage,
 });
 
+const legalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/legal/$document",
+  component: LegalPage,
+});
 const routeTree = rootRoute.addChildren([
+  legalRoute,
   loginRoute,
   appRoute.addChildren([
     indexRoute,

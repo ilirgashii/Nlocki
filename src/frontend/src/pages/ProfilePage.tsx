@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { AccountPrivacy } from "../components/AccountPrivacy";
 import { SecuritySettings } from "../components/SecuritySettings";
 import {
   useFollowUser,
@@ -729,7 +730,12 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {isOwn && <SecuritySettings />}
+      {isOwn && (
+        <>
+          <SecuritySettings />
+          <AccountPrivacy />
+        </>
+      )}
 
       {editOpen && <EditProfileModal onClose={() => setEditOpen(false)} />}
       {goalsOpen && <GoalSettingsModal onClose={() => setGoalsOpen(false)} />}

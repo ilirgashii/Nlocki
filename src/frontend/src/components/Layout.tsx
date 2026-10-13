@@ -1,5 +1,6 @@
 import { useLocation } from "@tanstack/react-router";
 import { useState } from "react";
+import { BetaNotice } from "./BetaNotice";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { Header } from "./Header";
 import { MobileNav } from "./MobileNav";
@@ -33,6 +34,7 @@ export function Layout({ children }: LayoutProps) {
       />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
+        <BetaNotice />
         <ConnectionStatus />
         <main
           id="main-content"

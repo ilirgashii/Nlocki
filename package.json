@@ -19,13 +19,18 @@
     "test:browser": "node tests/browser.integration.mjs",
     "test:totp": "bash scripts/test-totp.sh",
     "test:security": "node tests/security.integration.mjs",
-    "docker:up": "docker compose up --build -d",
+    "docker:up": "node scripts/setup-local.mjs && docker compose up --build -d",
     "docker:down": "docker compose down",
     "test:docker": "node tests/docker.integration.mjs",
     "test:email": "node tests/email.integration.mjs",
     "test:email:browser": "node tests/email.browser.mjs",
     "test:calories": "node tests/calories.test.mjs",
-    "test:nutrition:browser": "node tests/nutrition-fitness.browser.mjs"
+    "test:nutrition:browser": "node tests/nutrition-fitness.browser.mjs",
+    "dev:ic": "bash scripts/dev-ic.sh",
+    "test:postgres": "node tests/postgres.integration.mjs",
+    "test:passkeys": "node tests/passkeys.integration.mjs",
+    "test:postgres:persistence": "node tests/postgres-persistence.integration.mjs",
+    "test:restore": "node tests/restore.integration.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.58.2"
@@ -33,6 +38,9 @@
   "private": true,
   "dependencies": {
     "@icp-sdk/core": "~4.1.1",
-    "nodemailer": "^10.1.0"
+    "@simplewebauthn/server": "^14.0.3",
+    "nodemailer": "^10.1.0",
+    "pg": "^8.23.1",
+    "sharp": "^0.35.5"
   }
 }

@@ -15,6 +15,7 @@ import { type BackendActor, connectBackend } from "../lib/backend-client";
 import {
   emailAuthEnabled,
   emailIdentity,
+  emailPasskeyIdentity,
   emailRequest,
   localEmailMode,
 } from "../lib/email-auth";
@@ -31,11 +32,13 @@ type Auth = {
   recoveryCodes: string[];
   dismissRecoveryCodes: () => void;
   login: () => void;
+  loginEmailPasskey: (email: string) => Promise<void>;
   emailLogin: (
     action: "signup" | "login" | "verify",
     email: string,
     password: string,
     code?: string,
+    agreements?: Record<string, unknown>,
   ) => Promise<boolean>;
   clear: () => Promise<void>;
   verifySecondFactor: (code: string) => Promise<void>;
@@ -185,12 +188,18 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
     email: string,
     password: string,
     code?: string,
+    agreements?: Record<string, unknown>,
   ) {
     const generation = authGeneration.current;
     setLoggingIn(true);
     setError(undefined);
     try {
-      const id = await emailIdentity(action, { email, password, code });
+      const id = await emailIdentity(action, {
+        email,
+        password,
+        code,
+        ...agreements,
+      });
       if (generation !== authGeneration.current)
         throw new Error("Sign-in changed. Please try again.");
       if (!id) return false;
@@ -198,6 +207,21 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
       qc.clear();
       await loadSecurity(id);
       return true;
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+  async function loginEmailPasskey(email: string) {
+    const generation = authGeneration.current;
+    setLoggingIn(true);
+    setError(undefined);
+    try {
+      const id = await emailPasskeyIdentity(email);
+      if (generation !== authGeneration.current)
+        throw new Error("Sign-in changed. Try again.");
+      authMethod.current = "email";
+      qc.clear();
+      await loadSecurity(id);
     } finally {
       setLoggingIn(false);
     }
@@ -334,6 +358,7 @@ export function InternetIdentityProvider({ children }: PropsWithChildren) {
         loginError,
         login,
         emailLogin,
+        loginEmailPasskey,
         clear,
         verifySecondFactor,
         confirmSecondFactor,

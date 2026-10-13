@@ -1,5 +1,8 @@
 import { createServer } from "node:http";
-import { DatabaseSync } from "node:sqlite";
+import { getDb, pool } from "./db.mjs";
+import { createPasskeys } from "./passkeys.mjs";
+import { createApi } from "./api.mjs";
+import { EU_BALKAN_COUNTRIES, PRIVACY_VERSION } from "./legal.mjs";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -49,7 +52,12 @@ if (!local && (!process.env.SMTP_HOST || !process.env.SMTP_FROM))
 const dir = resolve(process.env.AUTH_DATA_DIR || ".local-auth");
 mkdirSync(dir, { recursive: true, mode: 0o700 });
 const keyPath = resolve(dir, "encryption.key");
-if (!existsSync(keyPath) && existsSync(resolve(dir, "accounts.sqlite")))
+const db = await getDb();
+if (
+  !existsSync(keyPath) &&
+  (existsSync(resolve(dir, "accounts.sqlite")) ||
+    (await db.prepare("SELECT count(*) n FROM users").get()).n > 0)
+)
   throw new Error(
     "Authentication encryption key is missing. Restore the complete auth data backup.",
   );
@@ -58,12 +66,6 @@ if (!existsSync(keyPath))
 const master = readFileSync(keyPath);
 if (master.length !== 32)
   throw new Error("Invalid authentication encryption key.");
-const db = new DatabaseSync(resolve(dir, "accounts.sqlite"));
-db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
-CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,salt TEXT NOT NULL,password TEXT NOT NULL,identity TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0,code TEXT,code_expires INTEGER,code_attempts INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS limits(bucket TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS inbox(id TEXT PRIMARY KEY,email TEXT NOT NULL,code TEXT NOT NULL,created INTEGER NOT NULL);`);
 const smtp = process.env.SMTP_HOST
   ? nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -74,7 +76,12 @@ const smtp = process.env.SMTP_HOST
       socketTimeout: 15_000,
       tls: { minVersion: "TLSv1.2" },
       auth: process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
+        ? {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASSWORD_FILE
+              ? readFileSync(process.env.SMTP_PASSWORD_FILE, "utf8").trim()
+              : process.env.SMTP_PASSWORD,
+          }
         : undefined,
     })
   : undefined;
@@ -100,15 +107,15 @@ function decrypt(value) {
 function fail(status, message) {
   throw Object.assign(new Error(message), { status });
 }
-function rate(bucket, max, ms) {
+async function rate(bucket, max, ms) {
   const now = Date.now();
-  db.prepare("DELETE FROM limits WHERE expires < ?").run(now);
-  const row = db.prepare("SELECT * FROM limits WHERE bucket=?").get(bucket);
-  if (row && row.count >= max)
+  const row = await db
+    .prepare(
+      "INSERT INTO limits(bucket,count,expires) VALUES(?,1,?) ON CONFLICT(bucket) DO UPDATE SET count=CASE WHEN limits.expires<? THEN 1 ELSE limits.count+1 END,expires=CASE WHEN limits.expires<? THEN excluded.expires ELSE limits.expires END RETURNING count",
+    )
+    .get(bucket, now + ms, now, now);
+  if (Number(row.count) > max)
     fail(429, "Too many attempts. Please try again later.");
-  db.prepare(
-    "INSERT INTO limits VALUES(?,?,?) ON CONFLICT(bucket) DO UPDATE SET count=count+1",
-  ).run(bucket, 1, now + ms);
 }
 async function passwordHash(password, salt) {
   return (
@@ -157,52 +164,48 @@ async function delegation(user, body) {
     root,
     pubkey(body),
     new Date(Date.now() + 30 * 60_000),
-    { targets: [Principal.fromText(target)] },
+    target === "http" ? {} : { targets: [Principal.fromText(target)] },
   );
   return { delegation: chain.toJSON(), email: user.email };
 }
-function sessionUser(req) {
+async function sessionUser(req) {
   const token = (req.headers.cookie || "")
     .split(";")
     .map((s) => s.trim())
     .find((s) => s.startsWith("nlocki_session="))
     ?.slice(15);
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return;
-  return db
+  return await db
     .prepare(
-      "SELECT users.* FROM users JOIN sessions ON sessions.user_id=users.id WHERE sessions.token=? AND sessions.expires>?",
+      "SELECT users.*, sessions.token session_token, sessions.mfa_until FROM users JOIN sessions ON sessions.user_id=users.id WHERE sessions.token=? AND sessions.expires>?",
     )
     .get(hash(token), Date.now());
 }
-function setSession(res, user) {
+async function setSession(res, user) {
   const token = randomBytes(32).toString("hex");
-  db.prepare("DELETE FROM sessions WHERE expires < ?").run(Date.now());
-  db.prepare("INSERT INTO sessions VALUES(?,?,?)").run(
-    hash(token),
-    user.id,
-    Date.now() + 7 * 86400_000,
-  );
+  await db.prepare("DELETE FROM sessions WHERE expires < ?").run(Date.now());
+  await db
+    .prepare("INSERT INTO sessions(token,user_id,expires) VALUES(?,?,?)")
+    .run(hash(token), user.id, Date.now() + 7 * 86400_000);
   res.setHeader(
     "Set-Cookie",
-    `nlocki_session=${token}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=604800${local ? "" : "; Secure"}`,
+    `nlocki_session=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=604800${local ? "" : "; Secure"}`,
   );
 }
 async function sendCode(user) {
   const code = String(randomInt(1_000_000)).padStart(6, "0");
-  db.prepare(
-    "UPDATE users SET code=?,code_expires=?,code_attempts=0 WHERE id=?",
-  ).run(codeHash(user.id, code), Date.now() + 600_000, user.id);
+  await db
+    .prepare(
+      "UPDATE users SET code=?,code_expires=?,code_attempts=0 WHERE id=?",
+    )
+    .run(codeHash(user.id, code), Date.now() + 600_000, user.id);
   if (local && !smtp) {
-    db.prepare("DELETE FROM inbox WHERE email=? OR created<?").run(
-      user.email,
-      Date.now() - 600_000,
-    );
-    db.prepare("INSERT INTO inbox VALUES(?,?,?,?)").run(
-      randomBytes(12).toString("hex"),
-      user.email,
-      code,
-      Date.now(),
-    );
+    await db
+      .prepare("DELETE FROM inbox WHERE email=? OR created<?")
+      .run(user.email, Date.now() - 600_000);
+    await db
+      .prepare("INSERT INTO inbox VALUES(?,?,?,?)")
+      .run(randomBytes(12).toString("hex"), user.email, code, Date.now());
   } else {
     await smtp.sendMail({
       from: process.env.SMTP_FROM,
@@ -225,7 +228,7 @@ async function body(req) {
     chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 8192) fail(413, "Request too large.");
+    if (size > 750_000) fail(413, "Request too large.");
     chunks.push(chunk);
   }
   try {
@@ -238,23 +241,62 @@ function json(res, value, status = 200) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(value));
 }
+const passkeys = createPasskeys({
+  pool,
+  local,
+  origins,
+  sessionUser,
+  passwordHash,
+  delegation,
+  setSession,
+  hash,
+  rate,
+});
+const api = createApi({
+  db,
+  pool,
+  master,
+  encrypt,
+  decrypt,
+  fail,
+  rate,
+  sessionUser,
+  passwordHash,
+  hash,
+  local,
+  passkeys,
+});
 const server = createServer(async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
   try {
+    if (req.url === "/health") {
+      await pool.query("SELECT 1");
+      return json(res, { ok: true });
+    }
     safeRequest(req);
+    if (
+      !local &&
+      process.env.TRUST_CLOUDFLARE === "true" &&
+      !EU_BALKAN_COUNTRIES.includes(req.headers["cf-ipcountry"])
+    )
+      fail(403, "Service unavailable in this region.");
     const path = new URL(req.url, "http://localhost").pathname;
+    if (!path.startsWith("/api/auth/"))
+      return await api.handle(req, res, path, body, json);
     if (req.method === "GET" && path === "/api/auth/config")
       return json(res, {
         localTesting: local,
         requireVerification: verifyEmail,
         localInbox: local && !smtp,
+        privacyVersion: PRIVACY_VERSION,
+        httpBackend: true,
       });
     if (req.method === "GET" && path === "/api/auth/dev/inbox") {
       if (!local || smtp) fail(404, "Not found.");
       // Development inbox contains only email codes, never passwords or identity keys.
-      const rows = db
+      const rows = await db
         .prepare(
           "SELECT email,code FROM inbox WHERE created>? ORDER BY created DESC LIMIT 20",
         )
@@ -282,11 +324,21 @@ const server = createServer(async (req, res) => {
     }
     if (req.method !== "POST") fail(404, "Not found.");
     const input = await body(req);
+    if (path.startsWith("/api/auth/passkey/"))
+      return json(res, await passkeys.login(req, res, path, input));
     if (path === "/api/auth/signup") {
-      rate(`signup:${req.socket.remoteAddress}`, 30, 3600_000);
+      await rate(`signup:${req.socket.remoteAddress}`, 30, 3600_000);
       const { email, password } = credentials(input);
+      if (
+        !local &&
+        (input.acceptedTerms !== PRIVACY_VERSION || input.adult !== true)
+      )
+        fail(
+          400,
+          "Confirm the current beta terms and adult eligibility to create an account. Health-data consent is optional.",
+        );
       pubkey(input);
-      if (db.prepare("SELECT id FROM users WHERE email=?").get(email))
+      if (await db.prepare("SELECT id FROM users WHERE email=?").get(email))
         fail(
           409,
           "Cannot create this account. Try signing in or confirming your email.",
@@ -301,29 +353,43 @@ const server = createServer(async (req, res) => {
         identity: encrypt(JSON.stringify(identity.toJSON())),
         verified: verifyEmail ? 0 : 1,
       };
-      db.prepare(
-        "INSERT INTO users(id,email,salt,password,identity,verified) VALUES(?,?,?,?,?,?)",
-      ).run(
-        user.id,
-        email,
-        user.salt,
-        user.password,
-        user.identity,
-        user.verified,
-      );
+      await db
+        .prepare(
+          "INSERT INTO users(id,email,salt,password,identity,verified) VALUES(?,?,?,?,?,?)",
+        )
+        .run(
+          user.id,
+          email,
+          user.salt,
+          user.password,
+          user.identity,
+          user.verified,
+        );
+      await db
+        .prepare(
+          "INSERT INTO agreements(user_id,version,accepted,health_consent) VALUES(?,?,?,?)",
+        )
+        .run(
+          user.id,
+          PRIVACY_VERSION,
+          Date.now(),
+          local || input.healthConsent === true,
+        );
       if (!user.verified) {
         await sendCode(user);
         return json(res, { verificationRequired: true });
       }
       const result = await delegation(user, input);
-      setSession(res, user);
+      await setSession(res, user);
       return json(res, result);
     }
     if (path === "/api/auth/login" || path === "/api/auth/resend") {
       const { email, password } = credentials(input);
-      rate(`login:${hash(email)}`, 10, 300_000);
-      rate(`login-ip:${req.socket.remoteAddress}`, 100, 300_000);
-      const user = db.prepare("SELECT * FROM users WHERE email=?").get(email);
+      await rate(`login:${hash(email)}`, 10, 300_000);
+      await rate(`login-ip:${req.socket.remoteAddress}`, 100, 300_000);
+      const user = await db
+        .prepare("SELECT * FROM users WHERE email=?")
+        .get(email);
       const salt = user?.salt || "00".repeat(16);
       const calculated = await passwordHash(password, salt);
       if (
@@ -335,19 +401,21 @@ const server = createServer(async (req, res) => {
       )
         fail(401, "Email or password is incorrect.");
       if (!user.verified) {
-        rate(`mail:${user.id}`, 3, 600_000);
+        await rate(`mail:${user.id}`, 3, 600_000);
         await sendCode(user);
         return json(res, { verificationRequired: true });
       }
       if (path === "/api/auth/resend") return json(res, { verified: true });
       const result = await delegation(user, input);
-      setSession(res, user);
+      await setSession(res, user);
       return json(res, result);
     }
     if (path === "/api/auth/verify") {
       const { email, password } = credentials(input);
-      rate(`verify:${hash(email)}`, 10, 300_000);
-      const user = db.prepare("SELECT * FROM users WHERE email=?").get(email);
+      await rate(`verify:${hash(email)}`, 10, 300_000);
+      const user = await db
+        .prepare("SELECT * FROM users WHERE email=?")
+        .get(email);
       const calculated = await passwordHash(
         password,
         user?.salt || "00".repeat(16),
@@ -368,9 +436,9 @@ const server = createServer(async (req, res) => {
         user.code_attempts >= 5
       )
         fail(400, "Code expired or too many attempts. Request a new code.");
-      db.prepare(
-        "UPDATE users SET code_attempts=code_attempts+1 WHERE id=?",
-      ).run(user.id);
+      await db
+        .prepare("UPDATE users SET code_attempts=code_attempts+1 WHERE id=?")
+        .run(user.id);
       if (
         !/^\d{6}$/.test(String(input.code)) ||
         !timingSafeEqual(
@@ -380,15 +448,17 @@ const server = createServer(async (req, res) => {
       )
         fail(400, "Confirmation code is incorrect.");
       const result = await delegation(user, input);
-      db.prepare(
-        "UPDATE users SET verified=1,code=NULL,code_expires=NULL WHERE id=?",
-      ).run(user.id);
-      db.prepare("DELETE FROM inbox WHERE email=?").run(user.email);
-      setSession(res, user);
+      await db
+        .prepare(
+          "UPDATE users SET verified=1,code=NULL,code_expires=NULL WHERE id=?",
+        )
+        .run(user.id);
+      await db.prepare("DELETE FROM inbox WHERE email=?").run(user.email);
+      await setSession(res, user);
       return json(res, result);
     }
     if (path === "/api/auth/session") {
-      const user = sessionUser(req);
+      const user = await sessionUser(req);
       if (!user) fail(401, "Please sign in.");
       return json(res, await delegation(user, input));
     }
@@ -399,15 +469,21 @@ const server = createServer(async (req, res) => {
         .find((s) => s.startsWith("nlocki_session="))
         ?.slice(15);
       if (token)
-        db.prepare("DELETE FROM sessions WHERE token=?").run(hash(token));
+        await db.prepare("DELETE FROM sessions WHERE token=?").run(hash(token));
       res.setHeader(
         "Set-Cookie",
-        `nlocki_session=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0${local ? "" : "; Secure"}`,
+        `nlocki_session=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${local ? "" : "; Secure"}`,
       );
       return json(res, { ok: true });
     }
     fail(404, "Not found.");
   } catch (error) {
+    if ([401, 403, 429].includes(error.status))
+      void pool
+        .query("INSERT INTO security_events(kind) VALUES($1)", [
+          `${error.status}:${new URL(req.url, "http://localhost").pathname.startsWith("/api/auth") ? "auth" : "access"}`,
+        ])
+        .catch(() => {});
     json(
       res,
       {
@@ -419,6 +495,23 @@ const server = createServer(async (req, res) => {
     );
   }
 });
+const maintenance = setInterval(() => {
+  void api
+    .cleanup()
+    .catch(() =>
+      console.error("Media cleanup failed; inspect storage health."),
+    );
+  void pool
+    .query("DELETE FROM sessions WHERE expires<$1", [Date.now()])
+    .catch(() => {});
+  void pool
+    .query("DELETE FROM inbox WHERE created<$1", [Date.now() - 600000])
+    .catch(() => {});
+  void pool
+    .query("DELETE FROM security_events WHERE created<now()-interval '30 days'")
+    .catch(() => {});
+}, 60000);
+maintenance.unref();
 server.requestTimeout = 15_000;
 server.headersTimeout = 10_000;
 server.listen(
@@ -431,8 +524,7 @@ server.listen(
 );
 function stop() {
   server.close(() => {
-    db.close();
-    process.exit(0);
+    void pool.end().then(() => process.exit(0));
   });
 }
 process.on("SIGINT", stop);

@@ -22,7 +22,7 @@ const canisterId =
   process.env.NLOCKI_CANISTER_ID || "uxrrr-q7777-77774-qaaaq-cai";
 let server, cookie;
 async function start(verification = true) {
-  server = spawn(process.execPath, ["server/auth.mjs"], {
+  server = spawn(process.execPath, ["server/auth-ic.mjs"], {
     env: {
       ...process.env,
       AUTH_LOCAL_TESTING: "true",
@@ -101,7 +101,7 @@ try {
       SMTP_FROM: "",
     },
   ]) {
-    const blocked = spawnSync(process.execPath, ["server/auth.mjs"], {
+    const blocked = spawnSync(process.execPath, ["server/auth-ic.mjs"], {
       env: { ...process.env, ...extra },
       stdio: "pipe",
       timeout: 5000,

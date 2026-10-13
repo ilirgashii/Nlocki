@@ -1,25 +1,69 @@
 services:
-  app:
-    build: .
-    platform: linux/amd64
-    ports:
-      - "127.0.0.1:5173:5173"
-      - "127.0.0.1:4943:4943"
-    volumes:
-      - nlocki-data:/data
+  db:
+    image: postgres:17-bookworm
+    entrypoint: ["bash", "-c", 'export NLOCKI_APP_PASSWORD="$$(cat /run/secrets/db_app_password)"; exec docker-entrypoint.sh postgres']
     environment:
-      AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
+      POSTGRES_DB: nlocki
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [db_admin_password, db_app_password]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+      - ./server/sql/schema.sql:/opt/nlocki/schema.sql:ro
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d nlocki"]
+      interval: 5s
+      retries: 20
+    security_opt: [no-new-privileges:true]
+  api:
+    build:
+      context: .
+      target: build
+    environment:
+      AUTH_LOCAL_TESTING: "true"
       AUTH_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
-    stop_grace_period: 60s
+      AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
+      PGPASSWORD_FILE: /run/secrets/db_app_password
+      PGHOST: db
+    secrets: [db_app_password]
+    volumes:
+      - auth-state:/state
+      - photo-data:/media
+    networks: [database, web]
+    depends_on:
+      db:
+        condition: service_healthy
     init: true
-    security_opt:
-      - no-new-privileges:true
+    security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     healthcheck:
-      test: ["CMD", "node", "-e", "Promise.all([fetch('http://127.0.0.1:5173'),fetch('http://127.0.0.1:5173/api/auth/config')]).then(rs=>process.exit(rs.every(r=>r.ok)?0:1)).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 180s
-      retries: 5
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3010/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      retries: 10
+  gateway:
+    build:
+      context: .
+      target: gateway
+    ports: ["127.0.0.1:5173:8080"]
+    networks: [web]
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+networks:
+  database:
+    internal: true
+  web: {}
 volumes:
-  nlocki-data:
+  pg-data: {}
+  auth-state: {}
+  photo-data: {}
+secrets:
+  db_admin_password:
+    file: ./.secrets/db_admin_password
+  db_app_password:
+    file: ./.secrets/db_app_password

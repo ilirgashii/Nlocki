@@ -3,6 +3,7 @@ import {
   DelegationIdentity,
   Ed25519KeyIdentity,
 } from "@icp-sdk/core/identity";
+import { startAuthentication } from "@simplewebauthn/browser";
 export const localEmailMode = import.meta.env.VITE_LOCAL_AUTH === "true";
 export const emailAuthEnabled =
   localEmailMode || import.meta.env.VITE_EMAIL_AUTH === "true";
@@ -10,6 +11,7 @@ export type EmailConfig = {
   localTesting: boolean;
   requireVerification: boolean;
   localInbox: boolean;
+  privacyVersion?: string;
 };
 export async function emailRequest(
   path: string,
@@ -38,6 +40,25 @@ export async function emailIdentity(
   if (result.verificationRequired) return undefined;
   return DelegationIdentity.fromDelegation(
     session,
+    DelegationChain.fromJSON(JSON.stringify(result.delegation)),
+  );
+}
+
+export async function emailPasskeyIdentity(email: string) {
+  const key = Ed25519KeyIdentity.generate();
+  const publicKey = Array.from(
+    new Uint8Array(key.getPublicKey().toDer()),
+    (v) => v.toString(16).padStart(2, "0"),
+  ).join("");
+  const options = await emailRequest("passkey/options", { email });
+  const response = await startAuthentication({ optionsJSON: options });
+  const result = await emailRequest("passkey/verify", {
+    email,
+    publicKey,
+    response,
+  });
+  return DelegationIdentity.fromDelegation(
+    key,
     DelegationChain.fromJSON(JSON.stringify(result.delegation)),
   );
 }
