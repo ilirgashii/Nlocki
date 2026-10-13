@@ -1806,7 +1806,7 @@ export default function NutritionPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-display font-bold text-foreground leading-tight">
-              Nutrition
+              Nutrition Stats
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {new Date(`${selectedDate}T00:00:00`).toLocaleDateString([], {

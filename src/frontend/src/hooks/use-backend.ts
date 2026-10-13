@@ -37,6 +37,7 @@ const task = (t: {
   title: string;
   date: string;
   completed: boolean;
+  routineId?: string;
 }) => ({ ...t, id: String(t.id), createdAt: 0 });
 export function useTasksForDate(date: string) {
   return query(["tasks", date], async (a) =>
@@ -440,5 +441,29 @@ export function useRecentActivity(dates: string[]) {
         };
       }),
     ),
+  );
+}
+
+export function useTaskRoutine(date: string) {
+  return query(["routine", date], async (a) =>
+    (await a.getTaskRoutine(date)).map((v) => ({ ...v, id: String(v.id) })),
+  );
+}
+export function useAddTaskRoutine() {
+  return mutation((a, v: { date: string; title: string }) =>
+    a.addTaskRoutine(v.date, v.title),
+  );
+}
+export function useDeleteTaskRoutine() {
+  return mutation((a, v: { id: string; date: string }) =>
+    a.deleteTaskRoutine(BigInt(v.id), v.date),
+  );
+}
+export function useDeleteScheduleEntry() {
+  return mutation((a, id: string) => a.deleteScheduleEntry(id));
+}
+export function usePreviousWorkoutWeights(date: string) {
+  return query(["previous-weights", date], (a) =>
+    a.getPreviousWorkoutWeights(date),
   );
 }

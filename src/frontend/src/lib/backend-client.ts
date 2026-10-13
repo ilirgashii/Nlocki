@@ -14,7 +14,15 @@ import type {
 } from "../types";
 import { connectHttp, httpBackend } from "./http-backend";
 
-export type BackendActor = _SERVICE;
+export type BackendActor = _SERVICE & {
+  getTaskRoutine: (date: string) => Promise<{ id: bigint; title: string }[]>;
+  addTaskRoutine: (date: string, title: string) => Promise<unknown>;
+  deleteTaskRoutine: (id: bigint, fromDate: string) => Promise<void>;
+  deleteScheduleEntry: (id: string) => Promise<void>;
+  getPreviousWorkoutWeights: (
+    date: string,
+  ) => Promise<{ name: string; weightKg: number; date: string }[]>;
+};
 export async function connectBackend(
   canisterId: string,
   host: string,
@@ -29,7 +37,19 @@ export async function connectBackend(
   const hostname = new URL(host).hostname;
   if (["localhost", "127.0.0.1", "[::1]"].includes(hostname))
     await agent.fetchRootKey();
-  return Actor.createActor<_SERVICE>(idlFactory, { agent, canisterId });
+  const legacy = Actor.createActor<_SERVICE>(idlFactory, { agent, canisterId });
+  const unsupported = async (): Promise<never> => {
+    throw new Error(
+      "This feature requires the PostgreSQL backend. Start the default Docker stack.",
+    );
+  };
+  return Object.assign(legacy, {
+    getTaskRoutine: unsupported,
+    addTaskRoutine: unsupported,
+    deleteTaskRoutine: unsupported,
+    deleteScheduleEntry: unsupported,
+    getPreviousWorkoutWeights: unsupported,
+  });
 }
 export const opt = <T>(value: T | undefined | null): [] | [T] =>
   value == null ? [] : [value];

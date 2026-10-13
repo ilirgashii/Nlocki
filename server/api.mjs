@@ -519,8 +519,92 @@ export function createApi(ctx) {
             user.id,
           ]);
           break;
+        case "getTaskRoutine":
+          date(a);
+          result = (await own("routine"))
+            .filter(
+              (r) =>
+                r.data.startDate <= a &&
+                (!r.data.endDate || a < r.data.endDate),
+            )
+            .map(rowView)
+            .reverse();
+          break;
+        case "addTaskRoutine":
+          date(a);
+          if (
+            (await own("routine")).filter((r) => !r.data.endDate).length >= 100
+          )
+            err(400, "Maximum 100 daily routine items");
+          result = await save("routine", {
+            title: text(b.trim(), 1, 200),
+            startDate: a,
+          });
+          break;
+        case "deleteTaskRoutine": {
+          date(b);
+          const r = await find("routine", a);
+          if (r.owner_id !== user.id) err(404, "Routine not found");
+          await save("routine", { ...decode(r.data), endDate: b }, r.id);
+          await q(
+            "DELETE FROM documents WHERE owner_id=$1 AND kind='task' AND data->>'routineId'=$2 AND data->>'date'>=$3",
+            [user.id, String(a), b],
+          );
+          break;
+        }
+        case "deleteScheduleEntry": {
+          text(a, 1, 100);
+          const entries = decode(
+            (await first("schedule"))?.data ?? { entries: [] },
+          ).entries;
+          await single("schedule", {
+            entries: entries.filter((v) => v.id[0] !== a),
+          });
+          break;
+        }
+        case "getPreviousWorkoutWeights": {
+          date(a);
+          const rows = (await own("workout"))
+            .filter((r) => r.data.date < a)
+            .sort(
+              (x, y) =>
+                y.data.date.localeCompare(x.data.date) ||
+                Number(BigInt(y.id) - BigInt(x.id)),
+            );
+          const seen = new Set();
+          result = rows.flatMap((r) => {
+            const w = rowView(r);
+            if (seen.has(w.exerciseName)) return [];
+            seen.add(w.exerciseName);
+            return [
+              {
+                name: w.exerciseName,
+                weightKg: w.weight[0] ?? 0,
+                date: w.date,
+              },
+            ];
+          });
+          break;
+        }
         case "getTasksForDate":
           date(a);
+          const routineTasks = new Set(
+            (await own("task"))
+              .filter((t) => t.data.date === a)
+              .map((t) => t.data.routineId),
+          );
+          for (const r of (await own("routine")).filter(
+            (r) =>
+              r.data.startDate <= a && (!r.data.endDate || a < r.data.endDate),
+          )) {
+            if (!routineTasks.has(r.id))
+              await save("task", {
+                date: a,
+                title: r.data.title,
+                completed: false,
+                routineId: r.id,
+              });
+          }
           result = (await own("task"))
             .filter((r) => r.data.date === a)
             .map(rowView);
@@ -654,11 +738,14 @@ export function createApi(ctx) {
               option(a.weightKg);
               if (a.weightKg.length) number(a.weightKg[0], 0, 5000);
               const i = entries.findIndex((v) => v.id[0] === a.id[0]);
+              option(a.id);
+              if (!a.id.length) err(400, "Schedule entry ID required");
+              text(a.id[0], 1, 100);
               if (i < 0) {
-                result = false;
-                break;
-              }
-              entries[i] = a;
+                if (entries.length >= 100)
+                  err(400, "Too many planned exercises");
+                entries.push(a);
+              } else entries[i] = a;
               await single("schedule", { entries });
               result = true;
             }

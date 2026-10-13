@@ -290,14 +290,16 @@ function FollowButton({ userId }: { userId: string }) {
 // ---- Comments section ----
 function CommentsSection({ post }: { post: Post }) {
   const myId = useMyUserId();
-  const { data: comments = [] } = useComments(post.id);
+  const { data: comments = [], isLoading: commentsLoading } = useComments(
+    post.id,
+  );
   const addComment = useAddComment();
   const deleteComment = useDeleteComment();
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
-    if (!text.trim()) return;
+    if (!text.trim() || addComment.isPending) return;
     addComment.mutate(
       { postId: post.id, text: text.trim() },
       { onSuccess: () => setText("") },
@@ -306,7 +308,10 @@ function CommentsSection({ post }: { post: Post }) {
 
   return (
     <div className="border-t border-border mt-3 pt-3 space-y-2">
-      {comments.length === 0 && (
+      {commentsLoading && (
+        <p className="text-sm text-muted-foreground py-2">Loading comments…</p>
+      )}
+      {!commentsLoading && comments.length === 0 && (
         <p className="text-xs text-muted-foreground/60 py-1">
           No comments yet — be the first!
         </p>
@@ -322,7 +327,7 @@ function CommentsSection({ post }: { post: Post }) {
               {c.authorUsername.slice(0, 1).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0 bg-muted/40 rounded-lg px-2.5 py-1.5">
+          <div className="flex-1 min-w-0 bg-muted/30 border border-border/50 rounded-2xl rounded-tl-sm px-3 py-2.5">
             <span className="text-xs font-semibold text-foreground mr-1.5">
               @{c.authorUsername}
             </span>
@@ -333,10 +338,11 @@ function CommentsSection({ post }: { post: Post }) {
           {c.authorId === myId && (
             <button
               type="button"
-              onClick={() =>
-                deleteComment.mutate({ commentId: c.id, postId: post.id })
-              }
-              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-smooth shrink-0 mt-1.5"
+              onClick={() => {
+                if (window.confirm("Delete this comment?"))
+                  deleteComment.mutate({ commentId: c.id, postId: post.id });
+              }}
+              className="sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-destructive transition-smooth shrink-0 mt-1.5"
               aria-label="Delete comment"
               data-ocid={`people.comment.delete_button.${i + 1}`}
             >
@@ -348,10 +354,14 @@ function CommentsSection({ post }: { post: Post }) {
       <div className="flex gap-2 mt-2">
         <Input
           ref={inputRef}
+          aria-label="Add a comment"
+          maxLength={2000}
           placeholder="Add a comment…"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          onKeyDown={(e) =>
+            e.key === "Enter" && !e.nativeEvent.isComposing && handleSubmit()
+          }
           className="h-8 text-xs bg-input border-border"
           data-ocid="people.comment.input"
         />
@@ -361,6 +371,7 @@ function CommentsSection({ post }: { post: Post }) {
           className="h-8 px-2.5 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
           onClick={handleSubmit}
           disabled={!text.trim() || addComment.isPending}
+          aria-label="Send comment"
           data-ocid="people.comment.submit_button"
         >
           <Send className="w-3 h-3" />
@@ -391,10 +402,10 @@ function PostCard({ post, index }: { post: Post; index: number }) {
 
   return (
     <Card
-      className="bg-card border-border hover:shadow-subtle transition-smooth"
+      className="bg-card/90 border-border/70 rounded-3xl overflow-hidden hover:border-primary/20 transition-all duration-200"
       data-ocid={`people.post.item.${index + 1}`}
     >
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-5 space-y-4">
         {/* Author header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -425,7 +436,11 @@ function PostCard({ post, index }: { post: Post; index: number }) {
           {isOwn && (
             <button
               type="button"
-              onClick={() => deletePost.mutate(post.id)}
+              onClick={() => {
+                if (window.confirm("Delete this post and its comments?"))
+                  deletePost.mutate(post.id);
+              }}
+              disabled={deletePost.isPending}
               className="text-muted-foreground hover:text-destructive transition-smooth p-1 shrink-0"
               aria-label="Delete post"
               data-ocid={`people.post.delete_button.${index + 1}`}
@@ -436,7 +451,9 @@ function PostCard({ post, index }: { post: Post; index: number }) {
         </div>
 
         {/* Post text */}
-        <p className="text-sm text-foreground leading-relaxed">{post.text}</p>
+        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
+          {post.text}
+        </p>
 
         {/* Post photo */}
         {post.photoUrl && (
@@ -444,13 +461,14 @@ function PostCard({ post, index }: { post: Post; index: number }) {
             <img
               src={post.photoUrl}
               alt="Post"
-              className="w-full object-cover max-h-72"
+              className="w-full object-contain max-h-[420px] bg-muted/20"
+              loading="lazy"
             />
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-4 pt-1">
+        <div className="flex items-center gap-2 border-t border-border/60 pt-3">
           <button
             type="button"
             onClick={() =>
@@ -463,6 +481,9 @@ function PostCard({ post, index }: { post: Post; index: number }) {
                 ? "text-primary"
                 : "text-muted-foreground hover:text-primary"
             }`}
+            disabled={likePost.isPending || unlikePost.isPending}
+            aria-label={post.isLikedByMe ? "Unlike post" : "Like post"}
+            aria-pressed={post.isLikedByMe}
             data-ocid={`people.post.like_button.${index + 1}`}
           >
             <Heart
@@ -474,10 +495,12 @@ function PostCard({ post, index }: { post: Post; index: number }) {
             type="button"
             onClick={() => setShowComments((v) => !v)}
             className={`flex items-center gap-1.5 text-sm transition-smooth ${showComments ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+            aria-label="Show comments"
+            aria-expanded={showComments}
             data-ocid={`people.post.comment_toggle.${index + 1}`}
           >
             <MessageCircle className="w-4 h-4" />
-            <span>{post.commentCount}</span>
+            <span>{post.commentCount} comments</span>
           </button>
         </div>
 
@@ -498,7 +521,8 @@ function CreatePostForm() {
   const [showPhoto, setShowPhoto] = useState(false);
 
   const handleSubmit = () => {
-    if (!text.trim()) return;
+    if ((!text.trim() && !photoUrl) || photoPending || createPost.isPending)
+      return;
     createPost.mutate(
       { text: text.trim(), photoUrl: photoUrl.trim() || undefined },
       {
@@ -513,7 +537,15 @@ function CreatePostForm() {
 
   return (
     <Card className="bg-card border-border" data-ocid="people.create_post.card">
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-5 space-y-4">
+        <div>
+          <h2 className="font-semibold">Share an update</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            {myProfile?.isPublic
+              ? "Visible to people who can view your public profile."
+              : "Your profile is private. Your posts are visible only to you."}
+          </p>
+        </div>
         <div className="flex gap-3">
           <Avatar className="w-9 h-9 shrink-0">
             <AvatarImage src={myProfile?.avatarUrl} />
@@ -522,6 +554,14 @@ function CreatePostForm() {
             </AvatarFallback>
           </Avatar>
           <Textarea
+            aria-label="Post text"
+            maxLength={4000}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             placeholder="Share something with your people…"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -540,7 +580,10 @@ function CreatePostForm() {
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setShowPhoto((v) => !v)}
+            onClick={() => {
+              if (showPhoto) setPhotoUrl("");
+              setShowPhoto((v) => !v);
+            }}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-smooth"
             data-ocid="people.create_post.photo_toggle"
           >
@@ -552,13 +595,21 @@ function CreatePostForm() {
             size="sm"
             className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
             onClick={handleSubmit}
-            disabled={!text.trim() || createPost.isPending || photoPending}
+            disabled={
+              (!text.trim() && !photoUrl) ||
+              createPost.isPending ||
+              photoPending
+            }
             data-ocid="people.create_post.submit_button"
           >
             <Send className="w-3.5 h-3.5" />
             Post
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground flex justify-between">
+          <span>Ctrl / ⌘ + Enter to post</span>
+          <span>{text.length}/4000</span>
+        </p>
       </CardContent>
     </Card>
   );
@@ -587,7 +638,7 @@ function MessagesNavButton() {
 // ---- Main PeoplePage ----
 export default function PeoplePage() {
   const { data: stories = [] } = useStories();
-  const { data: feed = [] } = useFeed();
+  const { data: feed = [], isLoading: feedLoading } = useFeed();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const { data: searchResults = [] } = useSearchUsers(searchQuery);
@@ -599,6 +650,12 @@ export default function PeoplePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6" data-ocid="people.page">
+      <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 to-card p-6">
+        <h1 className="font-display font-bold text-2xl">Me & People</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Share your progress. Keep up with your people.
+        </p>
+      </div>
       {/* Top nav: back + messages */}
       <div className="flex items-center justify-between -mb-2">
         <button
@@ -703,9 +760,6 @@ export default function PeoplePage() {
                       {u.bio}
                     </p>
                   )}
-                  <p className="text-xs text-muted-foreground/40 font-mono">
-                    {u.userId.slice(0, 8)}
-                  </p>
                 </div>
                 <FollowButton userId={u.userId} />
               </div>
@@ -768,7 +822,14 @@ export default function PeoplePage() {
           />
           Your Feed
         </h3>
-        {feed.length === 0 ? (
+        {feedLoading ? (
+          <div
+            aria-live="polite"
+            className="rounded-3xl border p-8 text-sm text-muted-foreground"
+          >
+            Loading your feed…
+          </div>
+        ) : feed.length === 0 ? (
           <div
             className="flex flex-col items-center py-12 gap-3 bg-card border border-border rounded-2xl"
             data-ocid="people.feed.empty_state"

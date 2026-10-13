@@ -36,10 +36,12 @@ import {
   todayISO,
   useAddWorkout,
   useClearScheduleDay,
+  useDeleteScheduleEntry,
   useDeleteWorkout,
   useExportFitnessCSV,
   usePersonalRecord,
   usePersonalRecords,
+  usePreviousWorkoutWeights,
   useUpdateScheduleEntry,
   useUpdateWorkout,
   useWeeklySchedule,
@@ -309,7 +311,7 @@ function uid(): string {
 }
 
 function toISO(d: Date): string {
-  return d.toISOString().split("T")[0];
+  return d.toLocaleDateString("en-CA");
 }
 
 function formatTimestamp(iso?: string): string | null {
@@ -324,8 +326,8 @@ function formatTimestamp(iso?: string): string | null {
 }
 
 /** Get the Monday of the current week */
-function getWeekStart(): Date {
-  const now = new Date();
+function getWeekStart(anchor = todayISO()): Date {
+  const now = new Date(`${anchor}T12:00:00`);
   const jsDay = now.getDay(); // 0=Sun
   const offset = jsDay === 0 ? -6 : 1 - jsDay;
   const monday = new Date(now);
@@ -343,7 +345,8 @@ function WeekStrip({
   onSelectDate: (d: string) => void;
 }) {
   const today = todayISO();
-  const weekStart = getWeekStart();
+  const weekStart = getWeekStart(selectedDate);
+  const { data: planned = [] } = useWeeklySchedule();
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
@@ -379,6 +382,9 @@ function WeekStrip({
               {dayLabel}
             </span>
             <span className="text-base font-bold leading-none">{dateNum}</span>
+            <span className="text-[10px]">
+              {planned.filter((e) => e.dayOfWeek === i).length || "Rest"}
+            </span>
             {isToday && !isSelected && (
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
             )}
@@ -1092,6 +1098,92 @@ function WorkoutEditRow({
   );
 }
 
+function PlannedWorkoutRow({
+  entry,
+  date,
+  previous,
+  completed,
+}: {
+  entry: WeeklyScheduleEntry;
+  date: string;
+  previous?: { weightKg: number; date: string };
+  completed?: Workout;
+}) {
+  const [weight, setWeight] = useState("");
+  const add = useAddWorkout();
+  const kg = Number(weight);
+  const valid =
+    weight.trim() !== "" && Number.isFinite(kg) && kg >= 0 && kg <= 5000;
+  return (
+    <div
+      className="grid sm:grid-cols-[1fr_100px_110px_90px] gap-3 items-center rounded-xl border bg-muted/20 p-3"
+      data-ocid={`fitness.planned.${entry.id}`}
+    >
+      <div className="min-w-0">
+        <p className="font-semibold text-sm break-words">
+          {entry.exerciseName}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {entry.sets} sets × {entry.reps} reps
+        </p>
+      </div>
+      <div className="text-sm">
+        <span className="sm:hidden text-muted-foreground">Last time: </span>
+        {previous ? (
+          <>
+            <span>{previous.weightKg} kg</span>
+            <p className="text-xs text-muted-foreground">{previous.date}</p>
+          </>
+        ) : (
+          <span className="text-muted-foreground">No previous session</span>
+        )}
+      </div>
+      {completed ? (
+        <div className="text-sm font-semibold text-primary">
+          <span>{completed.weightKg} kg</span>
+          {previous && (
+            <p className="text-xs">
+              {completed.weightKg - previous.weightKg > 0 ? "+" : ""}
+              {Math.round((completed.weightKg - previous.weightKg) * 100) / 100}{" "}
+              kg
+            </p>
+          )}
+        </div>
+      ) : (
+        <Input
+          aria-label={`Today weight for ${entry.exerciseName}`}
+          type="number"
+          min="0"
+          max="5000"
+          step="0.5"
+          value={weight}
+          placeholder={String(previous?.weightKg ?? entry.weightKg)}
+          onChange={(e) => setWeight(e.target.value)}
+        />
+      )}
+      <Button
+        size="sm"
+        disabled={!!completed || !valid || add.isPending}
+        aria-label={`Save planned ${entry.exerciseName}`}
+        onClick={() =>
+          add.mutate({
+            date,
+            name: entry.exerciseName,
+            sets: entry.sets,
+            reps: entry.reps,
+            weightKg: kg,
+            durationMin: 0,
+            caloriesBurned: 0,
+            notes: "From weekly plan",
+          })
+        }
+      >
+        {completed ? "Saved ✓" : "Save"}
+      </Button>
+    </div>
+  );
+}
+
 // ── Daily Log Panel ────────────────────────────────────────────────────────────
 function DailyLogPanel({
   date,
@@ -1104,14 +1196,8 @@ function DailyLogPanel({
   const del = useDeleteWorkout();
   const update = useUpdateWorkout();
   const list = workouts ?? [];
-  const [prefilledExercise, setPrefilledExercise] = useState<Exercise | null>(
-    null,
-  );
 
-  const loggedNames = new Set(list.map((w) => w.name));
-  const plannedExercises = scheduleEntries.filter(
-    (e) => !loggedNames.has(e.exerciseName),
-  );
+  const { data: previous = [] } = usePreviousWorkoutWeights(date);
 
   const dayLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
     weekday: "long",
@@ -1121,69 +1207,49 @@ function DailyLogPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Planned exercises from schedule */}
-      {plannedExercises.length > 0 && (
-        <Card className="bg-card border border-primary/20 shadow-subtle">
-          <CardHeader className="pb-2">
-            <CardTitle className="font-display text-sm flex items-center gap-2 text-primary">
-              <CalendarDays className="w-4 h-4" />
-              Planned for Today ({plannedExercises.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex flex-col gap-2">
-              {plannedExercises.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-dashed border-primary/30 bg-primary/5"
-                  data-ocid={`fitness.planned.${entry.id}`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Dumbbell className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">
-                        {entry.exerciseName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {entry.sets} sets · {entry.reps} reps
-                        {entry.weightKg > 0 && ` · ${entry.weightKg} kg`}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const ex = EXERCISES.find(
-                        (e) => e.name === entry.exerciseName,
-                      ) ?? {
-                        id: `custom-${entry.id}`,
-                        name: entry.exerciseName,
-                        category: "Full Body" as const,
-                        muscleGroup: "",
-                      };
-                      setPrefilledExercise(ex);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="text-xs border-primary/30 text-primary hover:bg-primary/5 shrink-0 h-7"
-                    data-ocid={`fitness.log_planned_button.${entry.id}`}
-                  >
-                    Log
-                  </Button>
-                </div>
+      <Card
+        className="border-primary/20 overflow-hidden"
+        data-ocid="fitness.today_plan"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">
+            Planned for {date === todayISO() ? "today" : dayLabel}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Compare your last completed session with this one. Your weekly plan
+            repeats automatically.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {scheduleEntries.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-3">
+              Rest day · No exercises planned.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="hidden sm:grid grid-cols-[1fr_100px_110px_90px] gap-3 text-xs text-muted-foreground px-3">
+                <span>Exercise</span>
+                <span>Last time</span>
+                <span>Today (kg)</span>
+                <span />
+              </div>
+              {scheduleEntries.map((entry) => (
+                <PlannedWorkoutRow
+                  key={`${date}:${entry.id}`}
+                  entry={entry}
+                  date={date}
+                  previous={previous.find((w) => w.name === entry.exerciseName)}
+                  completed={list.find((w) => w.name === entry.exerciseName)}
+                />
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add workout form */}
       <EnergyBalance date={date} />
-      <WorkoutForm
-        date={date}
-        prefilledExercise={prefilledExercise}
-        onPrefilledClear={() => setPrefilledExercise(null)}
-      />
+      <WorkoutForm date={date} />
 
       {/* Logged workouts */}
       <Card className="bg-card border border-border shadow-subtle">
@@ -1397,6 +1463,7 @@ function ScheduleDayCard({
   const [weight, setWeight] = useState("");
   const updateEntry = useUpdateScheduleEntry();
   const clearDay = useClearScheduleDay();
+  const deleteEntry = useDeleteScheduleEntry();
 
   function handleAdd() {
     if (!selectedEx) {
@@ -1440,15 +1507,8 @@ function ScheduleDayCard({
   }
 
   function handleDeleteEntry(entry: WeeklyScheduleEntry) {
-    // Clear the whole day, then re-add all other entries for this day
-    const othersForDay = entries.filter((e) => e.id !== entry.id);
-    clearDay.mutate(day, {
-      onSuccess: () => {
-        for (const e of othersForDay) {
-          updateEntry.mutate(e);
-        }
-        toast.success(`${entry.exerciseName} removed.`);
-      },
+    deleteEntry.mutate(entry.id, {
+      onSuccess: () => toast.success(`${entry.exerciseName} removed.`),
     });
   }
 
@@ -1712,7 +1772,7 @@ export default function FitnessPage() {
       >
         <div>
           <h1 className="font-display font-bold text-2xl text-foreground">
-            Fitness Log
+            Fitness Stats
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Track workouts and plan your weekly schedule.
@@ -1738,10 +1798,10 @@ export default function FitnessPage() {
           >
             <TabsList className="bg-muted">
               <TabsTrigger value="daily" data-ocid="fitness.daily_tab">
-                Daily Log
+                Daily Stats
               </TabsTrigger>
               <TabsTrigger value="schedule" data-ocid="fitness.schedule_tab">
-                Weekly Schedule
+                Weekly Plan
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -1759,6 +1819,23 @@ export default function FitnessPage() {
           transition={{ delay: 0.05 }}
         >
           <Card className="bg-card border border-border shadow-subtle p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <Input
+                type="date"
+                aria-label="Fitness date"
+                value={selectedDate}
+                onChange={(e) =>
+                  e.target.value && setSelectedDate(e.target.value)
+                }
+                className="w-auto"
+              />
+              <Button
+                variant="ghost"
+                onClick={() => setSelectedDate(todayISO())}
+              >
+                Today
+              </Button>
+            </div>
             <WeekStrip
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}

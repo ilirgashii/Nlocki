@@ -50,3 +50,11 @@ Use Node 24+ and pnpm 10.34.0. `pnpm install --frozen-lockfile`, `pnpm typecheck
 The earlier Motoko/Internet Computer implementation remains preserved for existing test-data recovery in `compose.ic.yaml`, `Dockerfile.ic`, `server/auth-ic.mjs` and `src/backend`. Old IC tests and Mops/DFX commands apply only to that legacy implementation. The new PostgreSQL stack does not silently import existing IC/SQLite data; preserve original volumes and keys and plan a reviewed migration/export first. Do not reset `.dfx` to fix authentication. Internet Identity requires a matching IC network; standard WebAuthn is the online passkey alternative for this self-hosted backend.
 
 Additional checks: `pnpm test:postgres` checks account isolation, private media, messages, consent/export/deletion and TOTP enforcement. `pnpm test:postgres:persistence` requires an explicit `NLOCKI_TEST_COMPOSE_PROJECT` and restarts only that test stack. `pnpm test:passkeys` requires private test PostgreSQL connection settings and Chromium; it verifies WebAuthn with a virtual authenticator on loopback, not real domain/SMTP deployment. `pnpm test:restore` requires a separate isolated DB plus `RESTORE_TEST_DATABASE=true`; it checks deletion reconciliation without touching the active app database.
+
+## Plans and daily routines
+
+Fitness Stats shows the selected day's weekly plan before Log Exercise. Quick-save sets/reps/weight, compare with the latest completed session before that date, and revisit next week to see the saved weight. Rest days have no exercise rows. The full logging form adds duration and calorie estimates; weight alone cannot establish calories burned. Weekly entries can be added, edited or removed individually without clearing other exercises.
+
+Daily Planner separates repeating daily routine items from one-off extra tasks. Checks belong to each date; removing a routine applies from today and preserves earlier task history. Both routines and workout progress stay in PostgreSQL. Me & People supports private/public posting, photo-only posts, keyboard submission, likes and comments with pending feedback and deletion confirmation.
+
+Browser regression: `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium NLOCKI_BASE_URL=http://127.0.0.1:5173 node tests/planning-social.browser.mjs` exercises these features against the running Docker stack.

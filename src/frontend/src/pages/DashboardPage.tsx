@@ -387,13 +387,13 @@ const QUICK_LINKS = [
     ocid: "dashboard.quicklink.planner",
   },
   {
-    label: "Fitness Log",
+    label: "Fitness Stats",
     icon: Dumbbell,
     path: "/fitness",
     ocid: "dashboard.quicklink.fitness",
   },
   {
-    label: "Nutrition Log",
+    label: "Nutrition Stats",
     icon: UtensilsCrossed,
     path: "/nutrition",
     ocid: "dashboard.quicklink.nutrition",
@@ -1100,7 +1100,7 @@ export default function DashboardPage() {
           <CardHeader className="pb-3 px-5 pt-5 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-display font-semibold text-foreground flex items-center gap-2">
               <UtensilsCrossed className="w-4 h-4 text-primary" />
-              Nutrition Log
+              Nutrition Stats
             </CardTitle>
             <Button
               type="button"

@@ -19,13 +19,13 @@ const NAV_ITEMS = [
     alwaysVisible: false,
   },
   {
-    label: "Fitness Log",
+    label: "Fitness Stats",
     path: "/fitness",
     icon: Dumbbell,
     alwaysVisible: false,
   },
   {
-    label: "Nutrition Log",
+    label: "Nutrition Stats",
     path: "/nutrition",
     icon: UtensilsCrossed,
     alwaysVisible: false,
