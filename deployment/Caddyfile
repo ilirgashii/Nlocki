@@ -6,6 +6,8 @@
     Permissions-Policy "camera=(), microphone=(), geolocation=()"
     Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://world.openfoodfacts.org; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
   }
+  @installFiles path /sw.js /manifest.webmanifest
+  header @installFiles Cache-Control "no-cache"
   @api path /api/*
   handle @api {
     header Cache-Control "private, no-store"

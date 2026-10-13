@@ -114,11 +114,14 @@ export default function LegalPage() {
             Storage is controlled by the operator: PostgreSQL for
             account/application data, separate private storage for photos.
             Necessary HttpOnly cookies support login and security; theme
-            preferences are stored in your browser. The app includes no
-            advertising or marketing analytics. Infrastructure providers,
-            including Cloudflare and the email provider, may process connection
-            metadata; their actual contracts, locations and transfer safeguards
-            must be documented before launch.
+            preferences are stored in your browser. Public icons and a generic
+            offline page may be cached on your device for web-app installation;
+            account APIs and private photos are not stored in this
+            app-controlled cache. The app includes no advertising or marketing
+            analytics. Infrastructure providers, including Cloudflare and the
+            email provider, may process connection metadata; their actual
+            contracts, locations and transfer safeguards must be documented
+            before launch.
           </p>
           <p>
             Account data is retained while the account is active. Expired

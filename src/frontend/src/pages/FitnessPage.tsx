@@ -1,6 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,7 +26,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "../components/EmptyState";
@@ -1247,6 +1254,8 @@ function DailyLogPanel({
         </CardContent>
       </Card>
 
+      <WeeklySchedulePanel />
+
       {/* Add workout form */}
       <EnergyBalance date={date} />
       <WorkoutForm date={date} />
@@ -1424,7 +1433,7 @@ function ScheduleEntryRow({
           </p>
         )}
       </div>
-      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-smooth">
+      <div className="flex gap-0.5 transition-smooth">
         <button
           type="button"
           onClick={() => setEditing(true)}
@@ -1685,7 +1694,9 @@ function ScheduleDayCard({
 
 // ── Weekly Schedule Panel ──────────────────────────────────────────────────────
 function WeeklySchedulePanel() {
+  const isPresent = useIsPresent();
   const { data: schedule, isLoading } = useWeeklySchedule();
+  const [editDay, setEditDay] = useState<DayOfWeek | null>(null);
   const today = currentDayOfWeek();
 
   const entriesByDay = useMemo(() => {
@@ -1706,7 +1717,7 @@ function WeeklySchedulePanel() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <CardTitle className="font-display text-base flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-primary" />
-            Weekly Exercise Schedule
+            Weekly workout plan
           </CardTitle>
           <div className="flex items-center gap-3">
             <p className="text-xs text-muted-foreground">
@@ -1718,8 +1729,9 @@ function WeeklySchedulePanel() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground pt-1">
-          Add multiple exercises per day. Weights are editable anytime —
-          last-saved values persist.
+          Repeats every week · Add or edit exercises for each day. Logged
+          weights appear in Last time; your plan stays separate from your
+          workout history.
         </p>
       </CardHeader>
       <Separator />
@@ -1727,18 +1739,101 @@ function WeeklySchedulePanel() {
         {isLoading ? (
           <LoadingSpinner />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {ALL_DAYS.map((day) => (
-              <ScheduleDayCard
-                key={day}
-                day={day}
-                entries={entriesByDay[day] ?? []}
-                isToday={day === today}
-              />
-            ))}
+          <div
+            className="overflow-x-auto rounded-xl border"
+            data-ocid="fitness.weekly_plan_table"
+          >
+            <table className="w-full text-left text-sm min-w-[440px]">
+              <caption className="sr-only">
+                Recurring weekly workout plan, Monday through Sunday
+              </caption>
+              <thead className="bg-muted/40 text-xs text-muted-foreground">
+                <tr>
+                  <th className="p-3">Day</th>
+                  <th className="p-3">Exercises</th>
+                  <th className="p-3 text-right">Manage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ALL_DAYS.map((day) => (
+                  <tr
+                    key={day}
+                    className={`border-t ${day === today ? "bg-primary/5" : ""}`}
+                    data-ocid={`weekly.row.${day + 1}`}
+                  >
+                    <th scope="row" className="p-3 align-top font-medium">
+                      <span>{DAY_LABELS[day]}</span>
+                      {day === today && (
+                        <span className="block text-xs text-primary mt-1">
+                          Today
+                        </span>
+                      )}
+                    </th>
+                    <td className="p-3">
+                      {entriesByDay[day]?.length ? (
+                        <ul className="space-y-2">
+                          {entriesByDay[day]!.map((entry) => (
+                            <li key={entry.id}>
+                              <span className="font-medium">
+                                {entry.exerciseName}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {entry.sets} × {entry.reps} · Starting weight{" "}
+                                {entry.weightKg} kg
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-muted-foreground">Rest day</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right align-top">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isPresent}
+                        aria-label={`Edit ${DAY_LABELS[day]} plan`}
+                        onClick={() => setEditDay(day)}
+                      >
+                        {entriesByDay[day]?.length ? "Edit" : "+ Add"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </CardContent>
+      <Dialog
+        open={editDay !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditDay(null);
+        }}
+      >
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editDay !== null
+                ? `${DAY_LABELS[editDay]} workout plan`
+                : "Workout plan"}
+            </DialogTitle>
+            <DialogDescription>
+              Changes repeat each week. Completed workouts and their weights
+              remain in your history.
+            </DialogDescription>
+          </DialogHeader>
+          {editDay !== null && (
+            <ScheduleDayCard
+              key={editDay}
+              day={editDay}
+              entries={entriesByDay[editDay] ?? []}
+              isToday={editDay === today}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -58,3 +58,9 @@ Fitness Stats shows the selected day's weekly plan before Log Exercise. Quick-sa
 Daily Planner separates repeating daily routine items from one-off extra tasks. Checks belong to each date; removing a routine applies from today and preserves earlier task history. Both routines and workout progress stay in PostgreSQL. Me & People supports private/public posting, photo-only posts, keyboard submission, likes and comments with pending feedback and deletion confirmation.
 
 Browser regression: `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium NLOCKI_BASE_URL=http://127.0.0.1:5173 node tests/planning-social.browser.mjs` exercises these features against the running Docker stack.
+
+## Install on a phone
+
+The app now has Android/iOS home-screen icons, a web manifest and an Install Nlocki help button. See [mobile installation and launch](deployment/MOBILE-APP.md). On the real HTTPS domain, Android users choose Install app; iPhone users choose Safari → Share → Add to Home Screen. The installed app connects to the same server after sign-in. Offline mode shows a reconnect page; personal records and private photos are not put in the service worker cache. Push notifications, offline write/sync and store publication remain future work.
+
+The Monday–Sunday workout table is also visible directly below Planned for today. Select Add/Edit on a day to manage its repeating exercises without leaving Daily Stats; logged weights remain separate from starting plan weights.

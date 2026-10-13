@@ -14,6 +14,7 @@ import { useInternetIdentity } from "../hooks/use-auth";
 import { useMyProfile } from "../hooks/use-backend";
 import { useUnreadCount } from "../hooks/use-messages";
 import { useTheme } from "../hooks/use-theme";
+import { InstallApp } from "./InstallApp";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -75,6 +76,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           )}
         </Link>
       )}
+
+      <InstallApp />
 
       {/* Theme toggle */}
       <Button

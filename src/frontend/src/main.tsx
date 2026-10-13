@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import App from "./App";
 import { InternetIdentityProvider } from "./hooks/use-auth";
 import "./index.css";
+import "./lib/install-prompt";
 
 BigInt.prototype.toJSON = function () {
   return this.toString();
@@ -33,3 +34,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </InternetIdentityProvider>
   </QueryClientProvider>,
 );
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker
+      .register("/sw.js", { scope: "/", updateViaCache: "none" })
+      .catch(() =>
+        console.warn(
+          "Install support is unavailable; the web app remains usable online.",
+        ),
+      );
+  });
+}

@@ -122,7 +122,25 @@ try {
   await page
     .getByRole("heading", { name: "Fitness Stats", exact: true })
     .waitFor();
-  await page.locator('[data-ocid="fitness.schedule_tab"]').click();
+  await page.locator('[data-ocid="fitness.weekly_plan_table"]').waitFor();
+  assert.equal(
+    await page.evaluate(
+      () =>
+        !!(
+          document
+            .querySelector('[data-ocid="fitness.today_plan"]')
+            .compareDocumentPosition(
+              document.querySelector('[data-ocid="fitness.weekly_plan_table"]'),
+            ) & Node.DOCUMENT_POSITION_FOLLOWING
+        ),
+    ),
+    true,
+  );
+  await page
+    .getByRole("button", {
+      name: `Edit ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][day]} plan`,
+    })
+    .click();
   const dayCard = page.locator(`[data-ocid="schedule.day.${day + 1}"]`);
   await dayCard.locator(`[data-ocid="schedule.add_button.${day + 1}"]`).click();
   await dayCard
@@ -213,6 +231,13 @@ try {
   console.log(
     "PASS: recurring tasks/day-specific checks, extra tasks, weekly plan creation/persistence, latest previous weight (not max), next-week progression, rest days, atomic plan removal, post/like/comment persistence and mobile width",
   );
+} catch (error) {
+  console.log(
+    "Browser state on failure:",
+    (await page.locator("body").innerText()).slice(-3000),
+  );
+  await page.screenshot({ path: "/tmp/nlocki-plan-failure.png" });
+  throw error;
 } finally {
   if (userId)
     await context.request
