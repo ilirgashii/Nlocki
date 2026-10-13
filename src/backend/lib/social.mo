@@ -1,3 +1,4 @@
+import Runtime "mo:core/Runtime";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Set "mo:core/Set";
@@ -26,6 +27,10 @@ module {
     };
   };
 
+  public func withoutContacts(p : Types.UserProfile) : Types.UserProfile {
+    { p with email = null; phone = null };
+  };
+
   public func toMinimalProfile(self : Types.UserProfileInternal) : Types.MinimalProfile {
     {
       userId = self.userId;
@@ -47,7 +52,7 @@ module {
       var phone = null : ?Text;
       var bio = "";
       var avatarUrl = null;
-      var isPublic = true;
+      var isPublic = false;
       var followersCount = 0;
       var followingCount = 0;
     };
@@ -94,7 +99,7 @@ module {
           var phone = null : ?Text;
           var bio = "";
           var avatarUrl = ?url;
-          var isPublic = true;
+          var isPublic = false;
           var followersCount = 0;
           var followingCount = 0;
         };
@@ -114,6 +119,15 @@ module {
     isPublic : ?Bool,
   ) : Types.UserProfile {
     let userId = caller.toText();
+    switch (username) {
+      case (?name) {
+        if (name.size() < 3 or name.size() > 24) Runtime.trap("Username must have 3–24 characters");
+        for (c in name.chars()) {
+          if (not ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '_')) Runtime.trap("Invalid username");
+        };
+        profiles.forEach(func(id, p) { if (id != userId and p.username.toLower() == name.toLower()) Runtime.trap("Username is already in use") });
+      }; case null {};
+    };
     switch (profiles.get(userId)) {
       case (?p) {
         switch (username) { case (?u) p.username := u; case null {} };
@@ -133,7 +147,7 @@ module {
           var phone;
           var bio = switch (bio) { case (?b) b; case null "" };
           var avatarUrl = null;
-          var isPublic = switch (isPublic) { case (?ip) ip; case null true };
+          var isPublic = switch (isPublic) { case (?ip) ip; case null false };
           var followersCount = 0;
           var followingCount = 0;
         };
@@ -152,8 +166,10 @@ module {
     switch (profiles.get(targetId)) {
       case null null;
       case (?p) {
-        if (p.isPublic or requesterId == targetId) {
+        if (requesterId == targetId) {
           ?toPublicProfile(p);
+        } else if (p.isPublic) {
+          ?withoutContacts(toPublicProfile(p));
         } else {
           // Check if requester follows the target
           let isFollower = switch (follows.get(requesterId)) {
@@ -161,7 +177,7 @@ module {
             case null false;
           };
           if (isFollower) {
-            ?toPublicProfile(p);
+            ?withoutContacts(toPublicProfile(p));
           } else {
             // Return minimal profile disguised as full profile — privacy-first
             ?{
@@ -190,7 +206,7 @@ module {
     let results = List.empty<Types.UserProfile>();
     profiles.forEach(func(_, p) {
       if (p.username.toLower().contains(#text lower)) {
-        results.add(toPublicProfile(p));
+        results.add(if (p.isPublic) withoutContacts(toPublicProfile(p)) else { withoutContacts({ toPublicProfile(p) with bio = ""; displayName = null }) });
       };
     });
     results.toArray();
@@ -204,10 +220,20 @@ module {
     var found : ?Types.UserProfile = null;
     profiles.forEach(func(_, p) {
       if (p.username.toLower() == lower) {
-        found := ?toPublicProfile(p);
+        found := ?withoutContacts({ toPublicProfile(p) with bio = if (p.isPublic) p.bio else ""; displayName = if (p.isPublic) p.displayName else null });
       };
     });
     found;
+  };
+
+  public func validPhoto(url : Text) : Bool {
+    (url.startsWith(#text "data:image/jpeg;base64,") and url.size() <= 700_000) or
+    (url.startsWith(#text "https://") and url.size() <= 2048);
+  };
+
+  public func canView(requester : Text, target : Text, profiles : Map.Map<Text, Types.UserProfileInternal>) : Bool {
+    if (requester == target) return true;
+    switch (profiles.get(target)) { case (?p) p.isPublic; case null false };
   };
 
   // ── Follow helpers ─────────────────────────────────────────────────────────
@@ -295,7 +321,7 @@ module {
         let result = List.empty<Types.UserProfile>();
         set.forEach(func(fid) {
           switch (profiles.get(fid)) {
-            case (?p) result.add(toPublicProfile(p));
+            case (?p) result.add(withoutContacts(toPublicProfile(p)));
             case null {};
           };
         });
@@ -315,7 +341,7 @@ module {
         let result = List.empty<Types.UserProfile>();
         set.forEach(func(fid) {
           switch (profiles.get(fid)) {
-            case (?p) result.add(toPublicProfile(p));
+            case (?p) result.add(withoutContacts(toPublicProfile(p)));
             case null {};
           };
         });

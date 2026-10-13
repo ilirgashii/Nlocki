@@ -14,6 +14,7 @@ module {
     carbs : Nat;
     fat : Nat;
     date : Text;
+    details : ?Text;
   };
 
   // Returns the per-user meal list, creating it if absent

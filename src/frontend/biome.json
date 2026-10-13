@@ -2,8 +2,6 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
     "ignore": [
-      "**/backend.ts",
-      "**/backend.d.ts",
       "dist/**",
       "node_modules/**",
       "build/**",

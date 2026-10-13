@@ -6,8 +6,8 @@ type = "motoko"
 main = "main.mo"
 
 [build]
-commands = ["mops build", "pnpm bindgen"]
-out = "dist"
+commands = ["pnpm build:backend", "pnpm generate"]
+out = "../../.build/backend"
 
 [check]
 commands = ["mops check"]

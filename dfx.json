@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "canisters": {
+    "backend": {
+      "type": "custom",
+      "candid": ".build/backend/backend.did",
+      "wasm": ".build/backend/backend.wasm",
+      "build": "bash scripts/build-backend.sh",
+      "declarations": {
+        "output": "src/frontend/src/declarations",
+        "bindings": [
+          "js",
+          "ts"
+        ],
+        "env_override": "process.env.CANISTER_ID_BACKEND"
+      }
+    },
+    "frontend": {
+      "type": "assets",
+      "dependencies": [
+        "backend"
+      ],
+      "source": [
+        ".build/frontend"
+      ],
+      "build": [
+        "pnpm --dir src/frontend build"
+      ]
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "persistent"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { chromium } from 'playwright-core';
+import { idlFactory } from '../src/frontend/src/declarations/backend.did.js';
+const requireFrontend = createRequire(new URL('../src/frontend/package.json', import.meta.url));
+const { Actor, HttpAgent } = requireFrontend('@icp-sdk/core/agent');
+const { Ed25519KeyIdentity, DelegationChain } = requireFrontend('@icp-sdk/core/identity');
+const rootIdentity = Ed25519KeyIdentity.generate();
+const session = Ed25519KeyIdentity.generate();
+const chain = await DelegationChain.create(rootIdentity, session.getPublicKey(), new Date(Date.now() + 60 * 60 * 1000));
+const canisterId = execFileSync(process.env.NLOCKI_DFX || 'dfx', ['canister', 'id', 'backend'], { encoding: 'utf8' }).trim();
+const agent = new HttpAgent({ identity: rootIdentity, host: 'http://127.0.0.1:4943' }); await agent.fetchRootKey();
+const actor = Actor.createActor(idlFactory, { agent, canisterId });
+const url = process.env.NLOCKI_BASE_URL || 'http://127.0.0.1:5173';
+const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH, args: ['--no-sandbox'] });
+const page = await browser.newPage();
+page.setDefaultTimeout(30000);
+const errors = []; page.on('pageerror', e => errors.push(e.message));
+try {
+  await page.goto(url);
+  await page.getByRole('button', { name: 'Login with Internet Identity' }).waitFor();
+  assert.equal(await page.locator('input[type=password]').count(), 0);
+  assert.equal(await page.evaluate(() => localStorage.getItem('social:seeded')), null);
+  // Restore a real, signed test delegation through AuthClient's documented storage format.
+  // No authentication bypass or test identity is included in application code.
+  await page.evaluate(async ({ key, delegation }) => {
+    const db = await new Promise((resolve, reject) => { const req = indexedDB.open('auth-client-db', 1); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+    await new Promise((resolve, reject) => { const tx = db.transaction('ic-keyval', 'readwrite'); tx.objectStore('ic-keyval').put(key, 'identity'); tx.objectStore('ic-keyval').put(delegation, 'delegation'); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    db.close();
+  }, { key: JSON.stringify(session.toJSON()), delegation: JSON.stringify(chain.toJSON()) });
+  await page.reload();
+  await page.getByRole('heading', { name: 'Set up your profile' }).waitFor();
+  const username = `b_${rootIdentity.getPrincipal().toText().replaceAll('-', '').slice(0, 18)}`;
+  await page.getByLabel('Display name').fill('Browser test'); await page.getByLabel('Username', { exact: true }).fill(username);
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await page.getByLabel('Username', { exact: true }).waitFor({ state: 'hidden' });
+  await page.goto(`${url}/planner`);
+  await page.locator('[data-ocid="planner.task.input"]').fill('Browser task persisted on backend');
+  await page.locator('[data-ocid="planner.task.add_button"]').click();
+  await page.getByText('Browser task persisted on backend', { exact: true }).waitFor();
+  const savedDate = await page.evaluate(() => new Date().toLocaleDateString('en-CA'));
+  assert.ok((await actor.getTasksForDate(savedDate)).some(t => t.title === 'Browser task persisted on backend'));
+  await page.reload(); await page.getByText('Browser task persisted on backend', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(date => localStorage.getItem(`tasks:${date}`), savedDate), null);
+  await page.goto(`${url}/people`);
+  await page.locator('[data-ocid="people.create_post.textarea"]').fill('A real browser post');
+  await page.locator('[data-ocid="people.create_post.photo_toggle"]').click();
+  await page.locator('[data-ocid="people.create_post.file"]').setInputFiles({ name: 'test.png', mimeType: 'image/png', buffer: Buffer.from(await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 4; c.height = 4; c.getContext('2d').fillRect(0, 0, 4, 4); return c.toDataURL('image/png').split(',')[1]; }), 'base64') });
+  await page.getByAltText('Selected upload').waitFor();
+  await page.locator('[data-ocid="people.create_post.submit_button"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-ocid="people.create_post.textarea"]')?.value === '');
+  await page.getByText('A real browser post', { exact: true }).waitFor();
+  const posts = await actor.getUserPosts(rootIdentity.getPrincipal().toText());
+  assert.ok(posts.some(p => p.text === 'A real browser post' && p.photoUrl[0]?.startsWith('data:image/jpeg;base64,')));
+  await page.reload(); await page.getByText('A real browser post', { exact: true }).waitFor();
+  await page.goto(`${url}/charts`);
+  await page.getByText('Progress Charts', { exact: true }).first().waitFor();
+  await page.locator('[data-ocid="header.user_menu_button"]').click();
+  await page.locator('[data-ocid="header.logout_button"]').click();
+  await page.getByRole('button', { name: 'Login with Internet Identity' }).waitFor();
+  await page.reload();
+  await page.getByRole('button', { name: 'Login with Internet Identity' }).waitFor();
+  assert.deepEqual(errors, []);
+  console.log('PASS: login UI, signed-session restore, registration, task write/reload, photo post write/reload, charts, logout/reload and no browser runtime errors');
+} finally { await browser.close(); }

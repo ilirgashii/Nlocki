@@ -471,8 +471,9 @@ function ChatView({ otherUserId }: { otherUserId: string }) {
   // Mark as read when opening
   const markReadMutate = markRead.mutate;
   useEffect(() => {
-    markReadMutate(otherUserId);
-  }, [otherUserId, markReadMutate]);
+    if (messages.some((m) => m.recipientId === myId && !m.isRead))
+      markReadMutate(otherUserId);
+  }, [otherUserId, markReadMutate, messages, myId]);
 
   // Poll for new messages every 10 seconds
   const refetchFn = useCallback(() => {

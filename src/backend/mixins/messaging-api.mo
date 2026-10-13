@@ -12,6 +12,7 @@ import MessagingLib "../lib/messaging";
 
 mixin (
   messages : List.List<Types.Message>,
+  deletedMessages : Map.Map<Principal, Set.Set<Text>>,
   messageRequests : List.List<Types.MessageRequest>,
   blockedSenders : List.List<Types.BlockEntry>,
   messageCounter : { var value : Nat },
@@ -21,17 +22,27 @@ mixin (
   // Profiles for resolving usernames in conversation summaries
   profiles : Map.Map<Text, SocialTypes.UserProfileInternal>,
 ) {
+  func visibleMessages(caller : Principal) : List.List<Types.Message> {
+    switch (deletedMessages.get(caller)) {
+      case null messages;
+      case (?hidden) messages.filter(func(m) { not hidden.contains(m.id) });
+    };
+  };
+
   // Send a direct message — only allowed if follow relationship or accepted request exists
   // Returns the sent message or traps with a reason
   public shared ({ caller }) func sendMessage(
     recipientId : Text,
     text : Text,
   ) : async Types.Message {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     if (callerId == recipientId) Runtime.trap("Cannot message yourself");
     let canMsg = MessagingLib.hasFollowRelationship(follows, callerId, recipientId) or
       MessagingLib.hasAcceptedRequest(messageRequests, callerId, recipientId);
     if (not canMsg) Runtime.trap("No follow relationship or accepted message request");
+    if (text.size() == 0 or text.size() > 4000) Runtime.trap("Message must have 1–4000 characters");
+    switch (profiles.get(recipientId)) { case null Runtime.trap("Recipient not found"); case (?_) {} };
     messageCounter.value += 1;
     let msg : Types.Message = {
       id = MessagingLib.newMessageId(messageCounter.value);
@@ -52,8 +63,11 @@ mixin (
     recipientId : Text,
     previewText : Text,
   ) : async Types.MessageRequest {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     if (callerId == recipientId) Runtime.trap("Cannot send a request to yourself");
+    if (previewText.size() == 0 or previewText.size() > 200) Runtime.trap("Request must have 1–200 characters");
+    switch (profiles.get(recipientId)) { case null Runtime.trap("Recipient not found"); case (?_) {} };
     let now = Time.now();
     if (MessagingLib.isSenderBlocked(blockedSenders, callerId, recipientId, now)) {
       Runtime.trap("You are blocked from messaging this user");
@@ -82,6 +96,7 @@ mixin (
   public shared ({ caller }) func acceptMessageRequest(
     requestId : Text,
   ) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     var found = false;
     messageRequests.mapInPlace(func(r : Types.MessageRequest) : Types.MessageRequest {
@@ -97,6 +112,7 @@ mixin (
   public shared ({ caller }) func declineMessageRequest(
     requestId : Text,
   ) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     var senderId = "";
     var found = false;
@@ -119,9 +135,10 @@ mixin (
 
   // Get all active conversation summaries for the caller
   public shared query ({ caller }) func getConversations() : async [Types.ConversationSummary] {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     let partners = Set.empty<Text>();
-    messages.forEach(func(m : Types.Message) {
+    visibleMessages(caller).forEach(func(m : Types.Message) {
       if (m.senderId == callerId) partners.add(m.recipientId)
       else if (m.recipientId == callerId) partners.add(m.senderId)
     });
@@ -130,7 +147,7 @@ mixin (
         case (?p) p.username;
         case null partnerId;
       };
-      MessagingLib.buildSummary(messages, callerId, partnerId, username)
+      MessagingLib.buildSummary(visibleMessages(caller), callerId, partnerId, username)
     });
   };
 
@@ -138,8 +155,9 @@ mixin (
   public shared query ({ caller }) func getMessages(
     otherUserId : Text,
   ) : async [Types.Message] {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
-    messages.filter(func(m : Types.Message) : Bool {
+    visibleMessages(caller).filter(func(m : Types.Message) : Bool {
       (m.senderId == callerId and m.recipientId == otherUserId) or
       (m.senderId == otherUserId and m.recipientId == callerId)
     }).sort(func(a : Types.Message, b : Types.Message) : Order.Order {
@@ -151,6 +169,7 @@ mixin (
 
   // Get all pending incoming message requests for the caller
   public shared query ({ caller }) func getMessageRequests() : async [Types.MessageRequest] {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     messageRequests.filter(func(r : Types.MessageRequest) : Bool {
       r.recipientId == callerId and r.status == #pending
@@ -161,6 +180,7 @@ mixin (
   public shared ({ caller }) func markMessageRead(
     messageId : Text,
   ) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     messages.mapInPlace(func(m : Types.Message) : Types.Message {
       if (m.id == messageId and m.recipientId == callerId and not m.isRead) {
@@ -173,19 +193,22 @@ mixin (
   public shared ({ caller }) func deleteConversation(
     otherUserId : Text,
   ) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
-    let kept = messages.filter(func(m : Types.Message) : Bool {
-      not ((m.senderId == callerId and m.recipientId == otherUserId) or
-           (m.senderId == otherUserId and m.recipientId == callerId))
+    let hidden = switch (deletedMessages.get(caller)) {
+      case (?entries) entries;
+      case null { let entries = Set.empty<Text>(); deletedMessages.add(caller, entries); entries };
+    };
+    messages.forEach(func(m) {
+      if ((m.senderId == callerId and m.recipientId == otherUserId) or (m.senderId == otherUserId and m.recipientId == callerId)) hidden.add(m.id);
     });
-    messages.clear();
-    messages.append(kept);
   };
 
   // Check if caller can message a target user (follow/follower or accepted request)
   public shared query ({ caller }) func canMessageUser(
     targetUserId : Text,
   ) : async Bool {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     MessagingLib.hasFollowRelationship(follows, callerId, targetUserId) or
     MessagingLib.hasAcceptedRequest(messageRequests, callerId, targetUserId)
@@ -196,6 +219,7 @@ mixin (
     messageId : Text,
     emoji : Text,
   ) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     let now = Time.now();
     messages.mapInPlace(func(m : Types.Message) : Types.Message {
@@ -227,6 +251,7 @@ mixin (
     messageId : Text,
     emoji : Text,
   ) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let callerId = caller.toText();
     messages.mapInPlace(func(m : Types.Message) : Types.Message {
       if (m.id == messageId and (m.senderId == callerId or m.recipientId == callerId)) {

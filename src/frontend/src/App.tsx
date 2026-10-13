@@ -1,5 +1,4 @@
-import { useInternetIdentity } from "@caffeineai/core-infrastructure";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Outlet,
   RouterProvider,
@@ -7,7 +6,12 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Layout } from "./components/Layout";
+import { Toaster } from "./components/ui/sonner";
+import { useActor } from "./hooks/use-actor";
+import { useInternetIdentity } from "./hooks/use-auth";
+import { useMyProfile } from "./hooks/use-backend";
 import ChartsPage from "./pages/ChartsPage";
 import ChatPage from "./pages/ChatPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -19,13 +23,18 @@ import PeoplePage from "./pages/PeoplePage";
 import PlannerPage from "./pages/PlannerPage";
 import ProfilePage from "./pages/ProfilePage";
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 1000 * 30 } },
-});
-
 // ---- Auth guard ----
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isInitializing } = useInternetIdentity();
+  const { isAuthenticated, isInitializing, identity } = useInternetIdentity();
+  const { connection } = useActor();
+  const ownProfile = useMyProfile();
+  const qc = useQueryClient();
+  const id = identity?.getPrincipal().toText();
+  useEffect(() => {
+    qc.removeQueries({
+      predicate: (q) => q.queryKey[0] === "account" && q.queryKey[1] !== id,
+    });
+  }, [id, qc]);
 
   if (isInitializing) {
     return (
@@ -48,6 +57,27 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <LoginPage />;
   }
 
+  if (connection.isError || ownProfile.isError) {
+    return (
+      <div className="p-8 space-y-4">
+        <h1 className="text-xl font-bold">Unable to connect</h1>
+        <p role="alert">{(connection.error || ownProfile.error)?.message}</p>
+        <button
+          type="button"
+          onClick={() => {
+            connection.refetch();
+            ownProfile.refetch();
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (!connection.data || ownProfile.isPending)
+    return <div className="p-8">Connecting to your account…</div>;
+  if (!ownProfile.data || ownProfile.data.username === ownProfile.data.userId)
+    return <LoginPage />;
   return <>{children}</>;
 }
 
@@ -61,11 +91,11 @@ const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
   component: () => (
-    <Layout>
-      <AuthGuard>
+    <AuthGuard>
+      <Layout>
         <Outlet />
-      </AuthGuard>
-    </Layout>
+      </Layout>
+    </AuthGuard>
   ),
 });
 
@@ -147,8 +177,9 @@ declare module "@tanstack/react-router" {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <RouterProvider router={router} />
-    </QueryClientProvider>
+      <Toaster position="bottom-right" />
+    </>
   );
 }

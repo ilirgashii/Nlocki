@@ -1,0 +1,10 @@
+[
+  {
+    "match": "**/*",
+    "security_policy": "standard",
+    "headers": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://icp-api.io https://world.openfoodfacts.org; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self';",
+      "Permissions-Policy": "camera=(self), publickey-credentials-get=(self), clipboard-write=(self)"
+    }
+  }
+]

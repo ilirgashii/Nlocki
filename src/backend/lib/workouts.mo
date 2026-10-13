@@ -13,6 +13,7 @@ module {
     reps : Nat;
     weight : ?Float;
     date : Text;
+    details : ?Text;
   };
 
   // Returns the per-user workout list, creating it if absent
@@ -48,6 +49,24 @@ module {
     };
     list.add(w);
     w;
+  };
+
+  public func update(
+    store : Map.Map<Principal, List.List<Workout>>,
+    user : Principal,
+    id : Nat,
+    entry : WorkoutInput,
+  ) : ?Workout {
+    let list = getUserList(store, user);
+    var result : ?Workout = null;
+    let updated = list.map<Workout, Workout>(func(w) {
+      if (w.id != id) return w;
+      let record : Workout = { w with exerciseName = entry.exerciseName; sets = entry.sets; reps = entry.reps; weight = entry.weight; date = entry.date };
+      result := ?record;
+      record;
+    });
+    list.clear(); list.append(updated);
+    result;
   };
 
   public func delete(

@@ -1,9 +1,9 @@
 {
-  "name": "@caffeine/template-app",
+  "name": "nlocki",
   "type": "module",
   "engines": {
-    "node": ">=16.0.0",
-    "pnpm": ">=7.0.0",
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0 <11",
     "npm": "please use pnpm"
   },
   "scripts": {
@@ -11,12 +11,16 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "check": "pnpm -r --if-present run check",
     "fix": "pnpm -r --if-present run fix",
-    "bindgen": "caffeine-bindgen --did-file ./src/backend/dist/backend.did --out-dir ./src/frontend/src --actor-interface-file --force"
+    "dev": "bash scripts/dev.sh",
+    "build:backend": "bash scripts/build-backend.sh",
+    "generate": "dfx generate backend",
+    "test:backend": "node tests/backend.integration.mjs",
+    "test:persistence": "node tests/backend.integration.mjs --persistence",
+    "test:browser": "node tests/browser.integration.mjs"
   },
   "devDependencies": {
+    "playwright-core": "1.58.2",
     "sharp": "^0.34.4"
   },
-  "dependencies": {
-    "@caffeineai/core-infrastructure": "^0.2.0"
-  }
+  "private": true
 }

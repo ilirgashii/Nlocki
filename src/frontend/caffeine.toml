@@ -6,7 +6,7 @@ type = "assets"
 
 [build]
 commands = ["pnpm build"]
-out = "dist"
+out = "../../.build/frontend"
 
 [check]
 commands = ["pnpm typecheck", "pnpm check"]

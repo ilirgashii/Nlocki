@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/ui/sonner";
 import { useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import { Header } from "./Header";
@@ -30,18 +29,9 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
         <footer className="shrink-0 bg-card border-t border-border px-6 py-3 text-xs text-muted-foreground text-center">
-          © {new Date().getFullYear()}. Built with love using{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            caffeine.ai
-          </a>
+          © {new Date().getFullYear()} Nlock&apos;i
         </footer>
       </div>
-      <Toaster position="bottom-right" />
     </div>
   );
 }

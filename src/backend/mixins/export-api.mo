@@ -1,3 +1,4 @@
+import Runtime "mo:core/Runtime";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Float "mo:core/Float";
@@ -17,6 +18,7 @@ mixin (
   /// Returns header row + one row per meal.
   /// Columns: date,meal_name,calories,protein,carbs,fat
   public shared query ({ caller }) func exportNutritionCSV(startDate : Text, endDate : Text) : async Text {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let rows = MealsLib.inRange(meals, caller, startDate, endDate);
     var csv = "date,meal_name,calories,protein,carbs,fat\n";
     for (m in rows.vals()) {
@@ -29,6 +31,7 @@ mixin (
   /// Returns header row + one row per workout.
   /// Columns: date,exercise_name,sets,reps,weight
   public shared query ({ caller }) func exportFitnessCSV(startDate : Text, endDate : Text) : async Text {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let rows = WorkoutsLib.inRange(workouts, caller, startDate, endDate);
     var csv = "date,exercise_name,sets,reps,weight\n";
     for (w in rows.vals()) {

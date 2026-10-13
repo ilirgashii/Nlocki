@@ -1,3 +1,4 @@
+import Runtime "mo:core/Runtime";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Principal "mo:core/Principal";
@@ -11,11 +12,13 @@ mixin (
 ) {
   // Return the current and longest workout streak for the calling user
   public shared query ({ caller }) func getWorkoutStreak() : async StreakTypes.WorkoutStreak {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     StreakLib.computeStreak(workouts, caller);
   };
 
   // Return all personal records for the calling user
   public shared query ({ caller }) func getPersonalRecords() : async [StreakTypes.PersonalRecord] {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     RecordsLib.computeAllRecords(workouts, caller);
   };
 
@@ -23,6 +26,7 @@ mixin (
   public shared query ({ caller }) func getPersonalRecord(
     exerciseName : Text,
   ) : async ?StreakTypes.PersonalRecord {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     RecordsLib.computeRecord(workouts, caller, exerciseName);
   };
 };

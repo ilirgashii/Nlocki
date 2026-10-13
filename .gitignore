@@ -1,0 +1,12 @@
+node_modules/
+.dfx/
+.build/
+.mops/
+.old/
+src/frontend/.env.local
+src/frontend/dist/
+*.log
+canister_ids.json
+.tools/
+/src/frontend/src/declarations/index.js
+/src/frontend/src/declarations/index.d.ts

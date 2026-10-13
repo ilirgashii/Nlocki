@@ -8,9 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useInternetIdentity } from "@caffeineai/core-infrastructure";
 import { Link } from "@tanstack/react-router";
 import { LogOut, Menu, MessageCircle, Moon, Sun, User } from "lucide-react";
+import { useInternetIdentity } from "../hooks/use-auth";
 import { useMyProfile } from "../hooks/use-backend";
 import { useUnreadCount } from "../hooks/use-messages";
 import { useTheme } from "../hooks/use-theme";
@@ -25,10 +25,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { data: profile } = useMyProfile();
   const { data: unreadCount = 0 } = useUnreadCount();
 
-  const username =
-    profile?.username || localStorage.getItem("auth:username") || "You";
-  const displayEmail =
-    profile?.email || localStorage.getItem("auth:email") || "Nlock'i user";
+  const username = profile?.username || "You";
+  const displayEmail = profile?.email || "Nlock'i user";
   const initials = username.slice(0, 2).toUpperCase();
 
   return (

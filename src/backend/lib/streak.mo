@@ -1,3 +1,4 @@
+import Time "mo:core/Time";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Set "mo:core/Set";
@@ -28,9 +29,9 @@ module {
     let m : Int = mp + (if (mp < 10) 3 else -9);
     let yr : Int = y + (if (m <= 2) 1 else 0);
     let pad2 = func(n : Int) : Text {
-      if (n < 10) { "0" # debug_show(n) } else { debug_show(n) }
+      if (n < 10) { "0" # n.toNat().toText() } else { n.toNat().toText() }
     };
-    debug_show(yr) # "-" # pad2(m) # "-" # pad2(d)
+    yr.toNat().toText() # "-" # pad2(m) # "-" # pad2(d)
   };
 
   // Compute current and longest workout streak for the given user
@@ -116,6 +117,7 @@ module {
       j += 1;
     };
 
+    if (dateToDayNumber(_timestampToDate(Time.now())) - dateToDayNumber(lastDate) > 1) currentStreak := 0;
     {
       currentStreak;
       longestStreak;

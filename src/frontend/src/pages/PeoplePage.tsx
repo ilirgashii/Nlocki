@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { PhotoPicker } from "../components/PhotoPicker";
 import {
   useAddComment,
   useComments,
@@ -135,6 +136,7 @@ function StoryCircle({
 function AddStoryButton() {
   const [open, setOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [photoPending, setPhotoPending] = useState(false);
   const [text, setText] = useState("");
   const createStory = useCreateStory();
 
@@ -190,12 +192,11 @@ function AddStoryButton() {
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
-        <Input
-          placeholder="Photo URL"
+        <PhotoPicker
           value={photoUrl}
-          onChange={(e) => setPhotoUrl(e.target.value)}
-          className="bg-input border-border"
-          data-ocid="people.add_story.photo_input"
+          onChange={setPhotoUrl}
+          onProcessing={setPhotoPending}
+          prefix="people.add_story"
         />
         <Input
           placeholder="Caption (optional)"
@@ -208,7 +209,7 @@ function AddStoryButton() {
           type="button"
           className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={handleSubmit}
-          disabled={!photoUrl.trim() || createStory.isPending}
+          disabled={!photoUrl.trim() || createStory.isPending || photoPending}
           data-ocid="people.add_story.submit_button"
         >
           Share Story
@@ -493,6 +494,7 @@ function CreatePostForm() {
   const createPost = useCreatePost();
   const [text, setText] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  const [photoPending, setPhotoPending] = useState(false);
   const [showPhoto, setShowPhoto] = useState(false);
 
   const handleSubmit = () => {
@@ -528,12 +530,11 @@ function CreatePostForm() {
           />
         </div>
         {showPhoto && (
-          <Input
-            placeholder="Photo URL (optional)"
+          <PhotoPicker
             value={photoUrl}
-            onChange={(e) => setPhotoUrl(e.target.value)}
-            className="bg-input border-border text-sm"
-            data-ocid="people.create_post.photo_input"
+            onChange={setPhotoUrl}
+            onProcessing={setPhotoPending}
+            prefix="people.create_post"
           />
         )}
         <div className="flex items-center justify-between">
@@ -551,7 +552,7 @@ function CreatePostForm() {
             size="sm"
             className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
             onClick={handleSubmit}
-            disabled={!text.trim() || createPost.isPending}
+            disabled={!text.trim() || createPost.isPending || photoPending}
             data-ocid="people.create_post.submit_button"
           >
             <Send className="w-3.5 h-3.5" />

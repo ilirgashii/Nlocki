@@ -19,8 +19,12 @@ import {
   YAxis,
 } from "recharts";
 import { ExportPanel } from "../components/ExportPanel";
-import { useMealsInRange, useWorkoutsInRange } from "../hooks/use-backend";
-import type { Meal, Task, WaterLog, Workout } from "../types";
+import {
+  useMealsInRange,
+  useRecentActivity,
+  useWorkoutsInRange,
+} from "../hooks/use-backend";
+import type { Meal, Workout } from "../types";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -235,41 +239,30 @@ function buildMacroPie(points: NutritionPoint[]): MacroPieSlice[] {
   ];
 }
 
-function buildTaskPoints(): TaskPoint[] {
-  const t = today();
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(t, i - 6);
-    const key = iso(d);
-    const raw = localStorage.getItem(`tasks:${key}`);
-    const tasks: Task[] = raw ? (JSON.parse(raw) as Task[]) : [];
-    return {
-      label: d.toLocaleDateString("en-US", {
-        weekday: "short",
-        day: "numeric",
-      }),
-      completed: tasks.filter((tk) => tk.completed).length,
-      total: tasks.length,
-    };
-  });
+type Activity = {
+  date: string;
+  total: number;
+  completed: number;
+  water: number;
+};
+function buildTaskPoints(activity: Activity[]): TaskPoint[] {
+  return activity.map((row) => ({
+    label: new Date(`${row.date}T12:00:00`).toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+    }),
+    completed: row.completed,
+    total: row.total,
+  }));
 }
-
-function buildWaterPoints(): WaterPoint[] {
-  const t = today();
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(t, i - 6);
-    const key = iso(d);
-    const raw = localStorage.getItem(`water:${key}`);
-    const log: WaterLog = raw
-      ? (JSON.parse(raw) as WaterLog)
-      : { date: key, totalMl: 0 };
-    return {
-      label: d.toLocaleDateString("en-US", {
-        weekday: "short",
-        day: "numeric",
-      }),
-      water: log.totalMl,
-    };
-  });
+function buildWaterPoints(activity: Activity[]): WaterPoint[] {
+  return activity.map((row) => ({
+    label: new Date(`${row.date}T12:00:00`).toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+    }),
+    water: row.water,
+  }));
 }
 
 function hasValues(
@@ -492,8 +485,13 @@ export default function ChartsPage() {
     () => buildMacroPie(nutritionPoints),
     [nutritionPoints],
   );
-  const taskPoints = useMemo(() => buildTaskPoints(), []);
-  const waterPoints = useMemo(() => buildWaterPoints(), []);
+  const activityDates = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => iso(addDays(today(), i - 6))),
+    [],
+  );
+  const { data: activity = [] } = useRecentActivity(activityDates);
+  const taskPoints = useMemo(() => buildTaskPoints(activity), [activity]);
+  const waterPoints = useMemo(() => buildWaterPoints(activity), [activity]);
 
   const hasWorkouts = hasValues(
     workoutPoints as unknown as Record<string, number | string>[],

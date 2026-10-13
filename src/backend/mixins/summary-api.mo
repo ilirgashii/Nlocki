@@ -1,3 +1,4 @@
+import Runtime "mo:core/Runtime";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Float "mo:core/Float";
@@ -24,6 +25,7 @@ mixin (
     waterMl : Nat;
     workoutCount : Nat;
   } {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let userTasks = switch (tasks.get(caller)) {
       case (?list) list.filter(func(t : TaskTypes.Task) : Bool { t.date == date });
       case null List.empty<TaskTypes.Task>();
@@ -65,6 +67,7 @@ mixin (
     avgCaloriesPerDay : Float;
     avgWaterPerDay : Float;
   } {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
     let workoutsThisWeek = switch (workouts.get(caller)) {
       case (?list) list.filter(func(w : WorkoutTypes.Workout) : Bool {
         w.date >= startDate and w.date <= endDate

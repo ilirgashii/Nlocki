@@ -24,9 +24,8 @@ import MessagingApi "mixins/messaging-api";
 import MessagingTypes "types/messaging";
 import StreakApi "mixins/streak-api";
 import MealsSuggestApi "mixins/meals-suggest-api";
-import Migration "migration";
+import Runtime "mo:core/Runtime";
 
-(with migration = Migration.run)
 actor {
   // Per-user task store: Principal → List<Task>
   let tasks = Map.empty<Principal, List.List<TaskTypes.Task>>();
@@ -56,23 +55,42 @@ actor {
   let goalsStore = Map.empty<Principal, GoalTypes.UserGoals>();
 
   // Messaging state
+  let deletedMessages = Map.empty<Principal, Set.Set<Text>>();
   let messages = List.empty<MessagingTypes.Message>();
   let messageRequests = List.empty<MessagingTypes.MessageRequest>();
   let blockedSenders = List.empty<MessagingTypes.BlockEntry>();
   let messageCounter = { var value : Nat = 0 };
   let requestCounter = { var value : Nat = 0 };
 
+  let archivedConversations = Map.empty<Principal, Set.Set<Text>>();
+  public shared query ({ caller }) func getArchivedConversations() : async [Text] {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    switch (archivedConversations.get(caller)) { case (?entries) entries.toArray(); case null [] };
+  };
+  public shared ({ caller }) func toggleArchivedConversation(otherUserId : Text) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Sign in required");
+    let entries = switch (archivedConversations.get(caller)) {
+      case (?entries) entries;
+      case null { let entries = Set.empty<Text>(); archivedConversations.add(caller, entries); entries };
+    };
+    if (entries.contains(otherUserId)) { entries.remove(otherUserId) } else { entries.add(otherUserId) };
+  };
+
+  let workoutDetails = Map.empty<Nat, Text>();
+  let mealDetails = Map.empty<Nat, Text>();
+  let scheduleEntryIds = Map.empty<Principal, Map.Map<Text, Text>>();
+
   include TasksApi(tasks, nextId);
-  include WorkoutsApi(workouts, nextId);
-  include MealsApi(meals, nextId);
+  include WorkoutsApi(workouts, nextId, workoutDetails);
+  include MealsApi(meals, nextId, mealDetails);
   include WaterApi(waterStore);
   include SummaryApi(tasks, workouts, meals, waterStore);
   include SocialApi(profiles, follows, followers, socialPosts, socialComments, socialStories, socialLikes, nextSocialId);
-  include ScheduleApi(weeklySchedules);
+  include ScheduleApi(weeklySchedules, scheduleEntryIds);
   include FoodPresetsApi();
   include GoalsApi(goalsStore);
   include ExportApi(meals, workouts);
-  include MessagingApi(messages, messageRequests, blockedSenders, messageCounter, requestCounter, follows, profiles);
+  include MessagingApi(messages, deletedMessages, messageRequests, blockedSenders, messageCounter, requestCounter, follows, profiles);
   include StreakApi(workouts);
   include MealsSuggestApi();
 };
