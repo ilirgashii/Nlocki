@@ -17,3 +17,11 @@ Do not commit `.secrets`, encryption keys, dumps, `.dfx`, private photos or TLS 
 No engineering control or beta agreement certifies GDPR compliance or waives mandatory liability. Operator contact details, processor agreements, legitimate-interest/DPIA assessments, breach response and the deployed system require legal/operational review.
 
 Mobile installation adds only public offline assets to app-controlled Cache Storage. The service worker does not cache API responses, private media, account exports or signed-in records, and offline navigation displays a generic reconnect page. No offline task queue, background sync or push subscription is created. Review this public on-device cache and install behavior with the deployment/privacy review before production.
+
+## Keeping credentials out of the public repository
+
+Only public configuration templates should be committed. `.env` files, `.secrets`, local authentication state, private certificate/key files and database backups are excluded from Git and Docker build contexts. Example templates contain empty credential fields or secret-file paths, not real credentials. A reference such as `/run/secrets/db_app_password` is a path; it does not publish the password.
+
+Run `node scripts/check-tracked-secrets.mjs` before committing; GitHub's Secrets check workflow also rejects private tracked paths and scans the complete available history with checksum-pinned Gitleaks and redacted output. Keep the scanner/rules current, review false positives individually, and never broadly allowlist credential directories. Enable GitHub secret scanning/push protection where supported; this workflow does not enable those account settings or prevent a direct push before its check runs. Make the check required in branch protection to gate merges.
+
+If a real credential is exposed, revoke/rotate it with its provider first, identify affected services/sessions and follow the incident procedure. Untrack the file while preserving needed local data; removing it from the latest commit does not erase Git history, forks or earlier clones. Coordinate any history rewrite with collaborators instead of force-pushing automatically. Rotating the auth encryption key requires a reviewed re-encryption/migration; replacing its bytes blindly can make existing accounts unreadable.

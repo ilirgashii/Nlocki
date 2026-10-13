@@ -9,6 +9,11 @@ import {
 } from "node:fs";
 import { randomBytes } from "node:crypto";
 mkdirSync(".secrets", { recursive: true, mode: 0o700 });
+if (!lstatSync(".secrets").isDirectory())
+  throw new Error(
+    ".secrets must be a private directory, not a symlink or file. Existing contents were preserved.",
+  );
+chmodSync(".secrets", 0o700);
 for (const name of ["db_admin_password", "db_app_password"]) {
   const path = `.secrets/${name}`;
   if (existsSync(path) && lstatSync(path).isDirectory()) {
