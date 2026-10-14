@@ -46,7 +46,7 @@ export default function LoginPage() {
     }
   }
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-10 relative overflow-hidden">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-background px-4 py-4 relative overflow-hidden">
       <Button
         variant="ghost"
         className="absolute top-4 right-4"
@@ -64,12 +64,12 @@ export default function LoginPage() {
         aria-hidden="true"
       />
       <div className="relative w-full max-w-5xl grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-        <section className="space-y-7 hidden lg:block">
+        <section className="space-y-5 hidden lg:block">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-sm text-primary">
             <ShieldCheck size={16} />
             Your life. Your space.
           </span>
-          <h2 className="font-display text-5xl font-bold leading-tight">
+          <h2 className="font-display text-4xl xl:text-5xl font-bold leading-tight">
             Make room for
             <br />
             <span className="text-primary">better days.</span>
@@ -98,7 +98,7 @@ export default function LoginPage() {
             ].map(({ icon: Icon, title, text }) => (
               <div
                 key={title}
-                className="flex gap-4 rounded-2xl border bg-card/60 p-4"
+                className="flex gap-4 rounded-2xl border bg-card/60 p-3"
               >
                 <div className="rounded-xl bg-primary/10 p-3 h-fit text-primary">
                   <Icon size={20} />
@@ -111,7 +111,7 @@ export default function LoginPage() {
             ))}
           </div>
         </section>
-        <div className="w-full max-w-md mx-auto rounded-3xl border bg-card/90 p-6 md:p-9 space-y-6 shadow-xl">
+        <div className="w-full max-w-md mx-auto rounded-3xl border bg-card/90 p-4 md:p-6 space-y-4 shadow-xl">
           <div className="text-center">
             <h1 className="font-display font-bold text-4xl">Nlock&apos;i</h1>
             <p className="text-muted-foreground mt-2">Life in easy mode.</p>
@@ -193,7 +193,7 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-      <footer className="mt-12 text-xs text-muted-foreground">
+      <footer className="mt-4 text-xs text-muted-foreground">
         © {new Date().getFullYear()} Nlock&apos;i
       </footer>
     </div>
