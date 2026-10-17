@@ -44,6 +44,7 @@ Target domain: **app.gixha.com**. No server, SMTP account, Cloudflare rule or pu
 The privacy panel supports data export, account deletion and optional health-data consent withdrawal. Draft Privacy, Beta terms and Impressum pages must be completed and reviewed for the actual German operator before real users. Health consent is separate from account terms. Beta status does not waive statutory rights or operator responsibilities.
 
 ## Development and checks
+Built with AI-assisted coding. Architecture, deployment and hosting are done by me.
 
 Use Node 24+ and pnpm 10.34.0. `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm check`, `VITE_BACKEND_MODE=http VITE_LOCAL_AUTH=true pnpm build`, `pnpm test:calories`. Run browser checks against the Docker stack with `NLOCKI_BASE_URL=http://127.0.0.1:5173` and, if needed, `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium`: `pnpm test:email:browser`, `pnpm test:nutrition:browser`.
 
